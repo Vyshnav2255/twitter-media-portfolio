@@ -9,6 +9,8 @@ let editMode = false;
 let hiddenIds = new Set();
 let hiddenMediaIds = new Set();
 
+const HIDDEN_STATE_STORAGE_KEY = "portfolio-hidden-state";
+
 const GRID_CONFIG = {
   COLS: 5,
   GAP: 18,
@@ -37,6 +39,11 @@ const overlay = document.getElementById("lightbox-overlay");
 const lightboxClose = document.getElementById("lightbox-close");
 const lightboxTitle = document.getElementById("lightbox-title");
 const lightboxLink = document.getElementById("lightbox-link");
+
+const canShowEditControls = () => {
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1" || new URLSearchParams(window.location.search).has("edit");
+};
 
 // --- Theme ---
 
@@ -107,6 +114,30 @@ const toggleMediaHidden = (mediaItem) => {
   } else {
     hiddenMediaIds.add(mediaItem.id);
   }
+};
+
+const getHiddenState = () => ({
+  hiddenIds: [...hiddenIds],
+  hiddenMediaIds: [...hiddenMediaIds],
+});
+
+const loadLocalHiddenState = () => {
+  try {
+    const raw = localStorage.getItem(HIDDEN_STATE_STORAGE_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    hiddenIds = new Set(saved.hiddenIds || []);
+    hiddenMediaIds = new Set(saved.hiddenMediaIds || []);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const saveLocalHiddenState = () => {
+  try {
+    localStorage.setItem(HIDDEN_STATE_STORAGE_KEY, JSON.stringify(getHiddenState()));
+  } catch {}
 };
 
 const getScrollBounds = () => {
@@ -766,14 +797,15 @@ const applyLayout = (layout) => {
 // --- Edit mode ---
 
 const saveHiddenIds = () => {
+  saveLocalHiddenState();
+
   fetch("/api/hidden", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      hiddenIds: [...hiddenIds],
-      hiddenMediaIds: [...hiddenMediaIds],
-    }),
-  }).catch(() => {});
+    body: JSON.stringify(getHiddenState()),
+  }).catch(() => {
+    // Static deployments cannot write portfolio.config.json; localStorage keeps edits in this browser.
+  });
 };
 
 const updateEditCounter = () => {
@@ -868,8 +900,8 @@ const createToolbar = () => {
   const layoutSwitcher = createLayoutSwitcher();
   toolbar.appendChild(layoutSwitcher);
 
-  // Only show edit toggle during local development
-  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+  // Localhost can persist to portfolio.config.json. Static deployments can use ?edit=1 for browser-local edits.
+  if (canShowEditControls()) {
     const editToggle = createEditToggle();
     toolbar.appendChild(editToggle);
   }
@@ -920,6 +952,7 @@ const init = async () => {
       hiddenMediaIds = new Set(CONFIG.hiddenMediaIds || []);
     }
   } catch {}
+  loadLocalHiddenState();
 
   VISIBLE_MEDIA_ITEMS = getDisplayMediaItems();
   console.log(`Loaded ${VISIBLE_MEDIA_ITEMS.length} media items from ${ALL_POSTS.length} posts`);

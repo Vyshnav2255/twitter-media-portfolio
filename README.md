@@ -48,7 +48,7 @@ This project deploys as a static site. `server.js` is only for local preview and
    - Build Command: `npm run build`
    - Output Directory: `dist`
 
-The deployed site is read-only. Use local edit mode to hide/show media, then commit the updated `portfolio.config.json` and redeploy.
+The deployed site is read-only. Use local edit mode to hide/show media, then commit the updated `portfolio.config.json` and redeploy. On a deployed site, open `?edit=1` to show edit controls; those changes are saved only in that browser.
 
 ## Features
 
