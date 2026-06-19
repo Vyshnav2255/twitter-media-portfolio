@@ -33,6 +33,23 @@ Claude will configure everything, sync your posts, and start the preview.
    ```
 4. Open **http://localhost:3000**
 
+## Deploy to Vercel
+
+This project deploys as a static site. `server.js` is only for local preview and edit mode.
+
+1. Sync your latest data locally:
+   ```bash
+   npm run sync
+   ```
+2. Commit `portfolio-data.json`, `portfolio.config.json`, and your code changes.
+3. Import the repo in Vercel.
+4. Use these Vercel settings:
+   - Framework Preset: **Other**
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+
+The deployed site is read-only. Use local edit mode to hide/show media, then commit the updated `portfolio.config.json` and redeploy.
+
 ## Features
 
 - **2 layouts** — Grid and Feed — finite scrolling with no repeated tiles

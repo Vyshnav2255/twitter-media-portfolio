@@ -4,6 +4,7 @@
   "description": "Turn your Twitter media tab into a visual portfolio",
   "main": "app.js",
   "scripts": {
+    "build": "node scripts/build-vercel.js",
     "sync": "node sync-media.js",
     "start": "node server.js"
   },
