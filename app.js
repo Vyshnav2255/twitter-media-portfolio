@@ -126,8 +126,8 @@ const loadLocalHiddenState = () => {
     const raw = localStorage.getItem(HIDDEN_STATE_STORAGE_KEY);
     if (!raw) return false;
     const saved = JSON.parse(raw);
-    hiddenIds = new Set(saved.hiddenIds || []);
-    hiddenMediaIds = new Set(saved.hiddenMediaIds || []);
+    for (const id of saved.hiddenIds || []) hiddenIds.add(id);
+    for (const id of saved.hiddenMediaIds || []) hiddenMediaIds.add(id);
     return true;
   } catch {
     return false;
