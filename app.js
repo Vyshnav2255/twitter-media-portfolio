@@ -1,11 +1,13 @@
 // Portfolio data
 let ALL_POSTS = [];
-let VISIBLE_POSTS = [];
+let ALL_MEDIA_ITEMS = [];
+let VISIBLE_MEDIA_ITEMS = [];
 let PROFILE = null;
 let CONFIG = null;
-let activeLayout = "masonry";
+let activeLayout = "grid";
 let editMode = false;
 let hiddenIds = new Set();
+let hiddenMediaIds = new Set();
 
 const GRID_CONFIG = {
   COLS: 5,
@@ -68,13 +70,75 @@ let colWidth = 0;
 let totalWidth = 0;
 let maxColHeight = 0;
 
-const getDisplayPosts = () => {
-  if (editMode) return ALL_POSTS.filter((p) => p.images && p.images.length > 0);
-  return ALL_POSTS.filter((p) => p.images && p.images.length > 0 && !hiddenIds.has(p.id));
+const buildMediaItems = (posts) =>
+  posts.flatMap((post) =>
+    (post.images || []).map((image, index) => ({
+      id: `${post.id}-${index}`,
+      post,
+      image,
+      mediaIndex: index,
+    }))
+  );
+
+const getDisplayMediaItems = () => {
+  if (editMode) return ALL_MEDIA_ITEMS;
+  return ALL_MEDIA_ITEMS.filter((item) => !isMediaHidden(item));
+};
+
+const getVisibleMediaCount = () =>
+  ALL_MEDIA_ITEMS.filter((item) => !isMediaHidden(item)).length;
+
+const isMediaHidden = (mediaItem) =>
+  hiddenMediaIds.has(mediaItem.id) || hiddenIds.has(mediaItem.post.id);
+
+const toggleMediaHidden = (mediaItem) => {
+  if (hiddenIds.has(mediaItem.post.id)) {
+    hiddenIds.delete(mediaItem.post.id);
+    for (const item of ALL_MEDIA_ITEMS) {
+      if (item.post.id === mediaItem.post.id && item.id !== mediaItem.id) {
+        hiddenMediaIds.add(item.id);
+      }
+    }
+    return;
+  }
+
+  if (hiddenMediaIds.has(mediaItem.id)) {
+    hiddenMediaIds.delete(mediaItem.id);
+  } else {
+    hiddenMediaIds.add(mediaItem.id);
+  }
+};
+
+const getScrollBounds = () => {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const lockX = activeLayout === "feed" || activeLayout === "grid";
+
+  return {
+    minX: 0,
+    maxX: lockX ? 0 : Math.max(totalWidth - vw, 0),
+    minY: 0,
+    maxY: Math.max(maxColHeight - vh + GRID_CONFIG.GAP, 0),
+  };
+};
+
+const clampOffset = (offset) => {
+  const bounds = getScrollBounds();
+  offset.x = Math.min(Math.max(offset.x, bounds.minX), bounds.maxX);
+  offset.y = Math.min(Math.max(offset.y, bounds.minY), bounds.maxY);
+};
+
+const clampTargetOffset = () => {
+  clampOffset(state.targetOffset);
+};
+
+const clampAllOffsets = () => {
+  clampOffset(state.targetOffset);
+  clampOffset(state.cameraOffset);
 };
 
 const buildLayout = () => {
-  VISIBLE_POSTS = getDisplayPosts();
+  VISIBLE_MEDIA_ITEMS = getDisplayMediaItems();
   if (activeLayout === "feed") buildFeedLayout();
   else if (activeLayout === "grid") buildGridLayout();
   else buildMasonryLayout();
@@ -90,13 +154,13 @@ const buildMasonryLayout = () => {
   const colHeights = new Array(GRID_CONFIG.COLS).fill(0);
   const columns = Array.from({ length: GRID_CONFIG.COLS }, () => []);
 
-  for (const post of VISIBLE_POSTS) {
+  for (const mediaItem of VISIBLE_MEDIA_ITEMS) {
     let minCol = 0;
     for (let c = 1; c < GRID_CONFIG.COLS; c++) {
       if (colHeights[c] < colHeights[minCol]) minCol = c;
     }
 
-    const img = post.images[0];
+    const img = mediaItem.image;
     const aspect = img.width / img.height;
     const itemW = colWidth - gap;
     const itemH = itemW / aspect;
@@ -104,13 +168,13 @@ const buildMasonryLayout = () => {
     const x = minCol * colWidth + gap / 2;
     const y = colHeights[minCol] + gap / 2;
 
-    columns[minCol].push({ post, x, y, w: itemW, h: itemH });
+    columns[minCol].push({ mediaItem, post: mediaItem.post, image: mediaItem.image, x, y, w: itemW, h: itemH });
     colHeights[minCol] += itemH + gap;
   }
 
   maxColHeight = Math.ceil(Math.max(...colHeights, 1));
 
-  // Equalize column heights for seamless vertical tiling:
+  // Equalize column heights so finite scrolling ends cleanly:
   // Distribute extra vertical space evenly within shorter columns
   for (let col = 0; col < GRID_CONFIG.COLS; col++) {
     const colItems = columns[col];
@@ -142,10 +206,11 @@ const buildGridLayout = () => {
   layoutItems = [];
   let colHeights = new Array(cols).fill(0);
 
-  for (let i = 0; i < VISIBLE_POSTS.length; i++) {
+  for (let i = 0; i < VISIBLE_MEDIA_ITEMS.length; i++) {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const img = VISIBLE_POSTS[i].images[0];
+    const mediaItem = VISIBLE_MEDIA_ITEMS[i];
+    const img = mediaItem.image;
     const aspect = img.width / img.height;
     const itemH = itemW / aspect;
 
@@ -153,7 +218,9 @@ const buildGridLayout = () => {
 
     layoutItems.push({
       key: `${col}-${row}`,
-      post: VISIBLE_POSTS[i],
+      mediaItem,
+      post: mediaItem.post,
+      image: mediaItem.image,
       x: col * colWidth + gap / 2,
       y,
       w: itemW,
@@ -165,7 +232,7 @@ const buildGridLayout = () => {
 
   maxColHeight = Math.ceil(Math.max(...colHeights, 1));
 
-  // Equalize column heights for seamless vertical tiling
+  // Equalize column heights so finite scrolling ends cleanly
   const colItemsMap = new Map();
   for (const item of layoutItems) {
     const col = parseInt(item.key.split("-")[0]);
@@ -195,14 +262,17 @@ const buildFeedLayout = () => {
   let y = gap;
 
   layoutItems = [];
-  for (let i = 0; i < VISIBLE_POSTS.length; i++) {
-    const img = VISIBLE_POSTS[i].images[0];
+  for (let i = 0; i < VISIBLE_MEDIA_ITEMS.length; i++) {
+    const mediaItem = VISIBLE_MEDIA_ITEMS[i];
+    const img = mediaItem.image;
     const aspect = img.width / img.height;
     const itemH = feedW / aspect;
 
     layoutItems.push({
       key: `0-${i}`,
-      post: VISIBLE_POSTS[i],
+      mediaItem,
+      post: mediaItem.post,
+      image: mediaItem.image,
       x: 0,
       y,
       w: feedW,
@@ -218,7 +288,7 @@ const buildFeedLayout = () => {
 const pool = [];
 const freePool = [];
 const activeMap = new Map();
-const elToPost = new WeakMap();
+const elToMediaItem = new WeakMap();
 
 const createPool = () => {
   grid.innerHTML = "";
@@ -272,18 +342,6 @@ const renderVisibleItems = () => {
   const camX = state.cameraOffset.x;
   const camY = state.cameraOffset.y;
 
-  const minCullX = Math.min(camX, state.targetOffset.x);
-  const maxCullX = Math.max(camX, state.targetOffset.x);
-  const minCullY = Math.min(camY, state.targetOffset.y);
-  const maxCullY = Math.max(camY, state.targetOffset.y);
-
-  // All layouts tile in both directions (360° infinite scroll)
-  const lockX = activeLayout === "feed" || activeLayout === "grid";
-  const startTileX = lockX ? 0 : Math.floor((minCullX - buf) / totalWidth);
-  const endTileX = lockX ? 0 : Math.floor((maxCullX + vw + buf) / totalWidth);
-  const startTileY = Math.floor((minCullY - buf) / maxColHeight);
-  const endTileY = Math.floor((maxCullY + vh + buf) / maxColHeight);
-
   // For feed/grid, center content horizontally using an offset
   let centerOffsetX = 0;
   if (activeLayout === "feed" || activeLayout === "grid") {
@@ -295,82 +353,78 @@ const renderVisibleItems = () => {
   for (let i = 0; i < layoutItems.length; i++) {
     const item = layoutItems[i];
 
-    for (let ty = startTileY; ty <= endTileY; ty++) {
-      for (let tx = startTileX; tx <= endTileX; tx++) {
-        const worldX = item.x + tx * totalWidth + centerOffsetX;
-        const worldY = item.y + ty * maxColHeight;
-        const sx = worldX - camX;
-        const sy = worldY - camY;
+    const worldX = item.x + centerOffsetX;
+    const worldY = item.y;
+    const sx = worldX - camX;
+    const sy = worldY - camY;
 
-        const txs = worldX - state.targetOffset.x;
-        const tys = worldY - state.targetOffset.y;
+    const txs = worldX - state.targetOffset.x;
+    const tys = worldY - state.targetOffset.y;
 
-        const visibleAtCam =
-          sx + item.w >= -buf && sx <= vw + buf &&
-          sy + item.h >= -buf && sy <= vh + buf;
-        const visibleAtTarget =
-          txs + item.w >= -buf && txs <= vw + buf &&
-          tys + item.h >= -buf && tys <= vh + buf;
+    const visibleAtCam =
+      sx + item.w >= -buf && sx <= vw + buf &&
+      sy + item.h >= -buf && sy <= vh + buf;
+    const visibleAtTarget =
+      txs + item.w >= -buf && txs <= vw + buf &&
+      tys + item.h >= -buf && tys <= vh + buf;
 
-        if (!visibleAtCam && !visibleAtTarget) continue;
+    if (!visibleAtCam && !visibleAtTarget) continue;
 
-        const visKey = `${item.key}_${tx}_${ty}`;
-        visibleThisFrame.add(visKey);
+    const visKey = item.key;
+    visibleThisFrame.add(visKey);
 
-        const existing = activeMap.get(visKey);
-        if (existing) {
-          if (existing.poolEl !== lightboxEl) {
-            existing.poolEl.style.transform = `translate3d(${sx}px, ${sy}px, 0)`;
-          }
-          // Update hidden state in edit mode
-          if (editMode) {
-            existing.poolEl.classList.toggle("hidden-post", hiddenIds.has(item.post.id));
-          } else {
-            existing.poolEl.classList.remove("hidden-post");
-          }
-          existing.screenX = sx;
-          existing.screenY = sy;
-        } else {
-          const el = acquireElement();
-          if (!el) continue;
-
-          const img = el.querySelector("img");
-          const src = twitterImageUrl(item.post.images[0].url, "medium");
-          if (img.src !== src) {
-            img.src = src;
-            img.alt = item.post.text.substring(0, 60);
-          }
-
-          // Show/hide video badge
-          const videoBadge = el.querySelector(".grid-item-video-badge");
-          if (videoBadge) {
-            videoBadge.style.display = item.post.images[0].type === "video" ? "" : "none";
-          }
-
-          el.style.width = `${item.w}px`;
-          el.style.height = `${item.h}px`;
-          el.style.transform = `translate3d(${sx}px, ${sy}px, 0)`;
-
-          if (editMode) {
-            el.classList.toggle("hidden-post", hiddenIds.has(item.post.id));
-          }
-
-          elToPost.set(el, item.post);
-          activeMap.set(visKey, {
-            poolEl: el,
-            layoutItem: item,
-            screenX: sx,
-            screenY: sy,
-          });
-        }
+    const existing = activeMap.get(visKey);
+    if (existing) {
+      if (existing.poolEl !== lightboxEl) {
+        existing.poolEl.style.transform = `translate3d(${sx}px, ${sy}px, 0)`;
       }
+      // Update hidden state in edit mode
+      if (editMode) {
+        existing.poolEl.classList.toggle("hidden-post", isMediaHidden(item.mediaItem));
+      } else {
+        existing.poolEl.classList.remove("hidden-post");
+      }
+      existing.screenX = sx;
+      existing.screenY = sy;
+    } else {
+      const el = acquireElement();
+      if (!el) continue;
+
+      const img = el.querySelector("img");
+      const src = twitterImageUrl(item.image.url, "medium");
+      if (img.src !== src) {
+        img.src = src;
+        img.alt = item.post.text.substring(0, 60);
+      }
+
+      // Show/hide video badge
+      const videoBadge = el.querySelector(".grid-item-video-badge");
+      if (videoBadge) {
+        videoBadge.style.display = item.image.type === "video" ? "" : "none";
+      }
+
+      el.style.width = `${item.w}px`;
+      el.style.height = `${item.h}px`;
+      el.style.transform = `translate3d(${sx}px, ${sy}px, 0)`;
+
+      if (editMode) {
+        el.classList.toggle("hidden-post", isMediaHidden(item.mediaItem));
+      }
+
+      elToMediaItem.set(el, item.mediaItem);
+      activeMap.set(visKey, {
+        poolEl: el,
+        layoutItem: item,
+        screenX: sx,
+        screenY: sy,
+      });
     }
   }
 
   for (const [visKey, entry] of activeMap) {
     if (!visibleThisFrame.has(visKey) && entry.poolEl !== lightboxEl) {
       releaseElement(entry.poolEl);
-      elToPost.delete(entry.poolEl);
+      elToMediaItem.delete(entry.poolEl);
       activeMap.delete(visKey);
     }
   }
@@ -381,12 +435,15 @@ const renderVisibleItems = () => {
 const DRAG_THRESHOLD = 5;
 let lightboxClone = null;
 
-const openLightbox = (el, post) => {
+const openLightbox = (el, mediaItem) => {
   if (state.lightboxOpen || state.lightboxAnimating) return;
+
+  const post = mediaItem?.post;
+  const image = mediaItem?.image;
 
   state.lightboxAnimating = true;
   state.lightboxOpen = true;
-  state.lightboxItem = { element: el, post };
+  state.lightboxItem = { element: el, mediaItem };
 
   const rect = el.getBoundingClientRect();
   const vw = window.innerWidth;
@@ -420,7 +477,7 @@ const openLightbox = (el, post) => {
   if (overlayEl) overlayEl.remove();
   // Ensure video badge stays visible in lightbox
   const cloneBadge = lightboxClone.querySelector(".grid-item-video-badge");
-  if (cloneBadge && post.images && post.images[0] && post.images[0].type === "video") {
+  if (cloneBadge && image && image.type === "video") {
     cloneBadge.style.display = "";
   }
   lightboxClone.style.width = `${startW}px`;
@@ -429,9 +486,9 @@ const openLightbox = (el, post) => {
   lightboxClone.style.visibility = "visible";
   lightboxClone.style.transform = `translate3d(${startX}px, ${startY}px, 0)`;
 
-  if (post) {
+  if (image) {
     const hiRes = new Image();
-    hiRes.src = twitterImageUrl(post.images[0].url, "4096x4096");
+    hiRes.src = twitterImageUrl(image.url, "4096x4096");
     hiRes.alt = "";
     hiRes.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px;opacity:0;transition:opacity 0.3s ease;";
     hiRes.onload = () => { hiRes.style.opacity = "1"; };
@@ -445,7 +502,7 @@ const openLightbox = (el, post) => {
   // Set lightbox info
   if (post) {
     // Strip t.co links from caption
-    const isVideo = post.images && post.images[0] && post.images[0].type === "video";
+    const isVideo = image && image.type === "video";
     let caption = post.text.trim().replace(/https?:\/\/t\.co\/\w+/g, "").trim();
     if (caption) {
       lightboxTitle.textContent = caption.length > 120 ? caption.substring(0, 120) + "\u2026" : caption;
@@ -551,6 +608,7 @@ const onMouseMove = (e) => {
   const lockX = activeLayout === "feed" || activeLayout === "grid";
   if (!lockX) state.targetOffset.x -= e.clientX - state.previousMousePosition.x;
   state.targetOffset.y -= e.clientY - state.previousMousePosition.y;
+  clampTargetOffset();
   state.previousMousePosition = { x: e.clientX, y: e.clientY };
 };
 
@@ -562,22 +620,18 @@ const onMouseUp = (e) => {
   if (wasDragging && !state.hasDragged && !state.lightboxOpen) {
     const target = e.target.closest(".grid-item");
     if (target) {
-      const post = elToPost.get(target);
-      if (!post) return;
+      const mediaItem = elToMediaItem.get(target);
+      if (!mediaItem) return;
 
       if (editMode) {
         // Toggle visibility in edit mode with smooth animation
-        if (hiddenIds.has(post.id)) {
-          hiddenIds.delete(post.id);
-        } else {
-          hiddenIds.add(post.id);
-        }
+        toggleMediaHidden(mediaItem);
         saveHiddenIds();
         updateEditCounter();
         // Animate the toggle smoothly — just update class, CSS handles transition
         renderVisibleItems();
       } else {
-        openLightbox(target, post);
+        openLightbox(target, mediaItem);
       }
     }
   }
@@ -595,6 +649,7 @@ const onTouchMove = (e) => {
     const lockX = activeLayout === "feed" || activeLayout === "grid";
     if (!lockX) state.targetOffset.x -= e.touches[0].clientX - state.touchStart.x;
     state.targetOffset.y -= e.touches[0].clientY - state.touchStart.y;
+    clampTargetOffset();
     state.touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   }
 };
@@ -609,10 +664,12 @@ const onWheel = (e) => {
   const lockX = activeLayout === "feed" || activeLayout === "grid";
   if (!lockX) state.targetOffset.x += e.deltaX;
   state.targetOffset.y += e.deltaY;
+  clampTargetOffset();
 };
 
 const onWindowResize = () => {
   buildLayout();
+  clampAllOffsets();
   for (const [visKey, entry] of activeMap) {
     releaseElement(entry.poolEl);
     activeMap.delete(visKey);
@@ -644,7 +701,6 @@ const createLayoutSwitcher = () => {
   switcher.id = "layout-switcher";
   switcher.className = "toolbar-group";
   const layouts = [
-    { id: "masonry", label: "Masonry", icon: "assets/masonry.svg" },
     { id: "grid", label: "Grid", icon: "assets/grid.svg" },
     { id: "feed", label: "Feed", icon: "assets/feed.svg" },
   ];
@@ -693,6 +749,7 @@ const applyLayout = (layout) => {
     }
 
     buildLayout();
+    clampAllOffsets();
     renderVisibleItems();
 
     void grid.offsetHeight;
@@ -712,15 +769,18 @@ const saveHiddenIds = () => {
   fetch("/api/hidden", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ hiddenIds: [...hiddenIds] }),
+    body: JSON.stringify({
+      hiddenIds: [...hiddenIds],
+      hiddenMediaIds: [...hiddenMediaIds],
+    }),
   }).catch(() => {});
 };
 
 const updateEditCounter = () => {
   const counter = document.getElementById("edit-counter");
   if (counter) {
-    const total = ALL_POSTS.filter((p) => p.images && p.images.length > 0).length;
-    const visible = total - hiddenIds.size;
+    const total = ALL_MEDIA_ITEMS.length;
+    const visible = getVisibleMediaCount();
     counter.textContent = `${visible}/${total}`;
   }
 };
@@ -830,6 +890,7 @@ const refreshGrid = () => {
     activeMap.delete(visKey);
   }
   buildLayout();
+  clampAllOffsets();
   renderVisibleItems();
 };
 
@@ -842,10 +903,12 @@ const init = async () => {
     if (!res.ok) throw new Error("Not found");
     const data = await res.json();
     ALL_POSTS = data.posts || [];
+    ALL_MEDIA_ITEMS = buildMediaItems(ALL_POSTS);
     PROFILE = data.profile || null;
   } catch {
     console.error("No portfolio-data.json found. Run: node sync-media.js");
     ALL_POSTS = [];
+    ALL_MEDIA_ITEMS = [];
   }
 
   // Load config for hidden IDs
@@ -854,11 +917,12 @@ const init = async () => {
     if (res.ok) {
       CONFIG = await res.json();
       hiddenIds = new Set(CONFIG.hiddenIds || []);
+      hiddenMediaIds = new Set(CONFIG.hiddenMediaIds || []);
     }
   } catch {}
 
-  VISIBLE_POSTS = getDisplayPosts();
-  console.log(`Loaded ${VISIBLE_POSTS.length} posts`);
+  VISIBLE_MEDIA_ITEMS = getDisplayMediaItems();
+  console.log(`Loaded ${VISIBLE_MEDIA_ITEMS.length} media items from ${ALL_POSTS.length} posts`);
 
   if (PROFILE) {
     document.title = `@${CONFIG?.handle || PROFILE.name} — Portfolio`;
@@ -866,6 +930,7 @@ const init = async () => {
 
   document.body.classList.add(`layout-${activeLayout}`);
   buildLayout();
+  clampAllOffsets();
   createPool();
   renderVisibleItems();
   createProfileHeader();

@@ -35,11 +35,11 @@ Claude will configure everything, sync your posts, and start the preview.
 
 ## Features
 
-- **3 layouts** — Masonry (infinite pan), Grid, Feed — all with 360° vertical looping
+- **2 layouts** — Grid and Feed — finite scrolling with no repeated tiles
 - **Edit mode** — Click the pencil to toggle. Click posts to show/hide. Saved to config automatically.
 - **Light/Dark theme** — Respects system preference, toggleable
 - **Lightbox** — Click any post to view full-size with a link to the original tweet
-- **Infinite pan** — Drag to explore your media in any direction
+- **Drag navigation** — Drag or scroll through your media
 
 ## Configuration
 
@@ -50,7 +50,8 @@ Claude will configure everything, sync your posts, and start the preview.
   "handle": "yourusername",
   "maxPosts": 200,
   "browser": "arc",
-  "hiddenIds": []
+  "hiddenIds": [],
+  "hiddenMediaIds": []
 }
 ```
 
@@ -60,7 +61,8 @@ Claude will configure everything, sync your posts, and start the preview.
 | `maxPosts` | How many posts to fetch (default 200) |
 | `browser` | Browser to read cookies from: `arc` or `chrome` |
 | `browserProfile` | Optional browser profile folder, for example `Default` or `Profile 1` |
-| `hiddenIds` | Tweet IDs hidden from portfolio (managed via edit mode) |
+| `hiddenIds` | Legacy tweet IDs hidden from portfolio |
+| `hiddenMediaIds` | Individual media item IDs hidden from portfolio (managed via edit mode) |
 
 ## Troubleshooting
 

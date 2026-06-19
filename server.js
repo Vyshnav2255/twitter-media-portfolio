@@ -20,10 +20,11 @@ const handleApi = (req, res) => {
     req.on("data", (chunk) => (body += chunk));
     req.on("end", () => {
       try {
-        const { hiddenIds } = JSON.parse(body);
+        const { hiddenIds, hiddenMediaIds } = JSON.parse(body);
         const configPath = path.join(__dirname, "portfolio.config.json");
         const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-        config.hiddenIds = hiddenIds;
+        config.hiddenIds = hiddenIds || [];
+        config.hiddenMediaIds = hiddenMediaIds || [];
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
