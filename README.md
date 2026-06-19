@@ -4,7 +4,7 @@ Turn your Twitter/X media posts into a visual portfolio. Clone, connect your pro
 
 ## Quick Start
 
-Requires **Node.js 20+** and **Chrome logged into x.com** (macOS).
+Requires **Node.js 20+** and a supported Chromium browser logged into x.com (macOS).
 
 ```bash
 git clone https://github.com/Nomanjack/twitter-media-portfolio.git
@@ -49,6 +49,7 @@ Claude will configure everything, sync your posts, and start the preview.
 {
   "handle": "yourusername",
   "maxPosts": 200,
+  "browser": "arc",
   "hiddenIds": []
 }
 ```
@@ -57,14 +58,16 @@ Claude will configure everything, sync your posts, and start the preview.
 |-----|-------------|
 | `handle` | Your Twitter/X username (without @) |
 | `maxPosts` | How many posts to fetch (default 200) |
+| `browser` | Browser to read cookies from: `arc` or `chrome` |
+| `browserProfile` | Optional browser profile folder, for example `Default` or `Profile 1` |
 | `hiddenIds` | Tweet IDs hidden from portfolio (managed via edit mode) |
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| "Query not found" | Twitter's GraphQL query IDs change. Open x.com in Chrome DevTools → Network → filter `graphql` → update IDs in `sync-media.js` |
-| "No ct0 cookie found" | Log into x.com in Chrome first |
+| "Query not found" | Twitter's GraphQL query IDs change. Open x.com DevTools → Network → filter `graphql` → update IDs in `sync-media.js` |
+| "No ct0 cookie found" | Log into x.com in the configured browser first. If you use multiple profiles, set `browserProfile` |
 | Port 3000 in use | `PORT=3001 node server.js` |
 
 ## Tech
@@ -72,7 +75,7 @@ Claude will configure everything, sync your posts, and start the preview.
 - Vanilla JS — no framework
 - [Motion One](https://motion.dev) for spring animations
 - DOM pooling (~500 elements) for smooth virtualized rendering
-- Twitter GraphQL API with Chrome cookie auth
+- Twitter GraphQL API with browser cookie auth
 
 ## Credits
 

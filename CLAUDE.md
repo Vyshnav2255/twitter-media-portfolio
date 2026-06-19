@@ -21,7 +21,7 @@ Twitter's GraphQL query IDs change when they update their web app. If `sync-medi
 - `UserByScreenName`: currently `NimuplG1OB7Fd2btCLdBOw`
 - `UserMedia`: currently `y4E0HTZKPhAOXewRMqMqgw`
 
-To find current IDs: open Chrome DevTools Network tab on x.com, filter by `graphql`, and look at the request URLs.
+To find current IDs: open the browser DevTools Network tab on x.com, filter by `graphql`, and look at the request URLs.
 
 ## Project Structure
 
@@ -36,5 +36,5 @@ To find current IDs: open Chrome DevTools Network tab on x.com, filter by `graph
 ## Requirements
 
 - Node.js 20+
-- Chrome logged into x.com (for cookie-based auth)
+- Supported Chromium browser logged into x.com (for cookie-based auth)
 - macOS (for Keychain cookie decryption)
