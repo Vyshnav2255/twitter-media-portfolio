@@ -7,7 +7,7 @@ Turn your Twitter/X media posts into a visual portfolio. Clone, connect your pro
 Requires **Node.js 20+** and a supported Chromium browser logged into x.com (macOS).
 
 ```bash
-git clone https://github.com/Nomanjack/twitter-media-portfolio.git
+git clone https://github.com/Vyshnav2255/twitter-media-portfolio.git
 cd twitter-media-portfolio
 npm install
 ```
@@ -98,8 +98,7 @@ The deployed site is read-only. Use local edit mode to hide/show media, then com
 
 ## Credits
 
-Built on top of [@daniel__designs](https://twitter.com/daniel__designs)' twitter-bookmarks-grid.
-
+Built on top of [@daniel__designs](https://twitter.com/daniel__designs)' twitter-bookmarks-grid & [Nomanjack](https://x.com/Nomandsign)'s twitter-media-portfolio.
 ## License
 
 MIT

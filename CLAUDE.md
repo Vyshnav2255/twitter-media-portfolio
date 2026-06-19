@@ -25,11 +25,11 @@ To find current IDs: open the browser DevTools Network tab on x.com, filter by `
 
 ## Project Structure
 
-- `portfolio.config.json` — handle, maxPosts, hiddenIds (user config)
-- `portfolio-data.json` — fetched posts + profile (generated, gitignored)
+- `portfolio.config.json` — handle, maxPosts, hiddenIds, hiddenMediaIds (user config)
+- `portfolio-data.json` — fetched posts + profile (generated, committed for static deploys)
 - `sync-media.js` — fetches media posts via Twitter GraphQL API
 - `server.js` — local dev server with API endpoint for saving hidden IDs
-- `app.js` — frontend: masonry/grid/feed layouts, lightbox, edit mode, theming
+- `app.js` — frontend: grid/feed layouts, lightbox, edit mode, theming
 - `style.css` — styles with light/dark theme support, design system aligned
 - `assets/` — custom SVG icons (masonry, grid, feed, edit, theme)
 
