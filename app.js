@@ -34,7 +34,6 @@ const state = {
 };
 
 const viewport = document.getElementById("viewport");
-const container = document.getElementById("container");
 const grid = document.getElementById("grid");
 const overlay = document.getElementById("lightbox-overlay");
 const lightboxClose = document.getElementById("lightbox-close");
@@ -944,16 +943,6 @@ const createToolbar = () => {
 };
 
 // --- Init ---
-
-const refreshGrid = () => {
-  for (const [visKey, entry] of activeMap) {
-    releaseElement(entry.poolEl);
-    activeMap.delete(visKey);
-  }
-  buildLayout();
-  clampAllOffsets();
-  renderVisibleItems();
-};
 
 const init = async () => {
   initTheme();
