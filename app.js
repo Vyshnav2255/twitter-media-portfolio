@@ -45,6 +45,15 @@ const canShowEditControls = () => {
   return host === "localhost" || host === "127.0.0.1" || new URLSearchParams(window.location.search).has("edit");
 };
 
+const isLocalDevServer = () => {
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+};
+
+const getVideoSrc = (url) => {
+  return isLocalDevServer() ? `/api/video-proxy?src=${encodeURIComponent(url)}` : url;
+};
+
 // --- Theme ---
 
 const getSystemTheme = () =>
@@ -516,7 +525,7 @@ const openLightbox = (el, mediaItem) => {
   if (image) {
     if (image.type === "video" && image.videoUrl) {
       const video = document.createElement("video");
-      video.src = `/api/video-proxy?src=${encodeURIComponent(image.videoUrl)}`;
+      video.src = getVideoSrc(image.videoUrl);
       video.poster = twitterImageUrl(image.url, "medium");
       video.controls = true;
       video.setAttribute("playsinline", "");
