@@ -13,7 +13,8 @@ const HIDDEN_STATE_STORAGE_KEY = "portfolio-hidden-state";
 
 const GRID_CONFIG = {
   COLS: 5,
-  GAP: 18,
+  GAP: 24,
+  MIN_ITEM_WIDTH: 150,
   easingFactor: 0.1,
   POOL_SIZE: 500,
   BUFFER: 600,
@@ -168,6 +169,36 @@ const clampAllOffsets = () => {
   clampOffset(state.cameraOffset);
 };
 
+const getResponsiveGridMetrics = (vw) => {
+  const gap = GRID_CONFIG.GAP;
+  const sidePadding = 24;
+  const topPadding = 24;
+  let cols = GRID_CONFIG.COLS;
+
+  if (vw <= 1440) cols = Math.min(cols, 4);
+  if (vw <= 1040) cols = Math.min(cols, 3);
+  if (vw <= 820) cols = 3;
+  if (vw <= 620) cols = Math.min(cols, 2);
+  if (vw <= 420) cols = 1;
+
+  const availableWidth = Math.max(vw - sidePadding * 2, 0);
+  const itemW = Math.max(
+    GRID_CONFIG.MIN_ITEM_WIDTH,
+    (availableWidth - gap * (cols - 1)) / cols
+  );
+  const gridWidth = itemW * cols + gap * (cols - 1);
+
+  return {
+    cols,
+    itemW,
+    colWidth: itemW + gap,
+    gridWidth,
+    availableWidth,
+    sidePadding,
+    topPadding,
+  };
+};
+
 const buildLayout = () => {
   VISIBLE_MEDIA_ITEMS = getDisplayMediaItems();
   if (activeLayout === "feed") buildFeedLayout();
@@ -178,26 +209,27 @@ const buildLayout = () => {
 const buildMasonryLayout = () => {
   const vw = window.innerWidth;
   const gap = GRID_CONFIG.GAP;
+  const metrics = getResponsiveGridMetrics(vw);
 
-  colWidth = Math.floor((vw - gap) / GRID_CONFIG.COLS);
-  totalWidth = colWidth * GRID_CONFIG.COLS;
+  colWidth = metrics.colWidth;
+  totalWidth = metrics.gridWidth;
 
-  const colHeights = new Array(GRID_CONFIG.COLS).fill(0);
-  const columns = Array.from({ length: GRID_CONFIG.COLS }, () => []);
+  const colHeights = new Array(metrics.cols).fill(metrics.topPadding);
+  const columns = Array.from({ length: metrics.cols }, () => []);
 
   for (const mediaItem of VISIBLE_MEDIA_ITEMS) {
     let minCol = 0;
-    for (let c = 1; c < GRID_CONFIG.COLS; c++) {
+    for (let c = 1; c < metrics.cols; c++) {
       if (colHeights[c] < colHeights[minCol]) minCol = c;
     }
 
     const img = mediaItem.image;
     const aspect = img.width / img.height;
-    const itemW = colWidth - gap;
+    const itemW = metrics.itemW;
     const itemH = itemW / aspect;
 
-    const x = minCol * colWidth + gap / 2;
-    const y = colHeights[minCol] + gap / 2;
+    const x = minCol * colWidth;
+    const y = colHeights[minCol];
 
     columns[minCol].push({ mediaItem, post: mediaItem.post, image: mediaItem.image, x, y, w: itemW, h: itemH });
     colHeights[minCol] += itemH + gap;
@@ -205,20 +237,8 @@ const buildMasonryLayout = () => {
 
   maxColHeight = Math.ceil(Math.max(...colHeights, 1));
 
-  // Equalize column heights so finite scrolling ends cleanly:
-  // Distribute extra vertical space evenly within shorter columns
-  for (let col = 0; col < GRID_CONFIG.COLS; col++) {
-    const colItems = columns[col];
-    if (colItems.length <= 1 || colHeights[col] >= maxColHeight) continue;
-    const deficit = maxColHeight - colHeights[col];
-    const extraPerItem = deficit / colItems.length;
-    for (let i = 0; i < colItems.length; i++) {
-      colItems[i].y += extraPerItem * i;
-    }
-  }
-
   layoutItems = [];
-  for (let col = 0; col < GRID_CONFIG.COLS; col++) {
+  for (let col = 0; col < metrics.cols; col++) {
     for (let row = 0; row < columns[col].length; row++) {
       layoutItems.push({ key: `${col}-${row}`, ...columns[col][row] });
     }
@@ -228,14 +248,15 @@ const buildMasonryLayout = () => {
 const buildGridLayout = () => {
   const vw = window.innerWidth;
   const gap = GRID_CONFIG.GAP;
-  const cols = GRID_CONFIG.COLS;
+  const metrics = getResponsiveGridMetrics(vw);
 
-  colWidth = Math.floor((vw - gap) / cols);
-  totalWidth = colWidth * cols;
-  const itemW = colWidth - gap;
+  const cols = metrics.cols;
+  colWidth = metrics.colWidth;
+  totalWidth = metrics.gridWidth;
+  const itemW = metrics.itemW;
 
   layoutItems = [];
-  let colHeights = new Array(cols).fill(0);
+  let colHeights = new Array(cols).fill(metrics.topPadding);
 
   for (let i = 0; i < VISIBLE_MEDIA_ITEMS.length; i++) {
     const col = i % cols;
@@ -245,14 +266,14 @@ const buildGridLayout = () => {
     const aspect = img.width / img.height;
     const itemH = itemW / aspect;
 
-    const y = colHeights[col] + gap / 2;
+    const y = colHeights[col];
 
     layoutItems.push({
       key: `${col}-${row}`,
       mediaItem,
       post: mediaItem.post,
       image: mediaItem.image,
-      x: col * colWidth + gap / 2,
+      x: col * colWidth,
       y,
       w: itemW,
       h: itemH,
@@ -262,35 +283,19 @@ const buildGridLayout = () => {
   }
 
   maxColHeight = Math.ceil(Math.max(...colHeights, 1));
-
-  // Equalize column heights so finite scrolling ends cleanly
-  const colItemsMap = new Map();
-  for (const item of layoutItems) {
-    const col = parseInt(item.key.split("-")[0]);
-    if (!colItemsMap.has(col)) colItemsMap.set(col, []);
-    colItemsMap.get(col).push(item);
-  }
-  for (let col = 0; col < cols; col++) {
-    const items = colItemsMap.get(col) || [];
-    if (items.length <= 1 || colHeights[col] >= maxColHeight) continue;
-    const deficit = maxColHeight - colHeights[col];
-    const extraPerItem = deficit / items.length;
-    for (let i = 0; i < items.length; i++) {
-      items[i].y += extraPerItem * i;
-    }
-  }
 };
 
 const buildFeedLayout = () => {
   const vw = window.innerWidth;
   const gap = GRID_CONFIG.GAP;
+  const metrics = getResponsiveGridMetrics(vw);
   const feedW = Math.min(560, vw - gap * 2);
 
   // totalWidth = feedW so centerOffsetX centers the feed column exactly
   colWidth = feedW;
   totalWidth = feedW;
 
-  let y = gap;
+  let y = metrics.topPadding;
 
   layoutItems = [];
   for (let i = 0; i < VISIBLE_MEDIA_ITEMS.length; i++) {
