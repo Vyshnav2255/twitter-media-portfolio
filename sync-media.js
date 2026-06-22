@@ -262,12 +262,25 @@ function parseTweet(tweetResult) {
   const mediaEntities = legacy.extended_entities?.media ?? legacy.entities?.media ?? [];
   if (mediaEntities.length === 0) return null;
 
-  const images = mediaEntities.map((m) => ({
-    url: m.media_url_https,
-    width: m.original_info?.width ?? m.sizes?.large?.w ?? 1,
-    height: m.original_info?.height ?? m.sizes?.large?.h ?? 1,
-    type: m.type || "photo",
-  }));
+  const images = mediaEntities.map((m) => {
+    const variants = Array.isArray(m.video_info?.variants) ? m.video_info.variants : [];
+    const mp4Variants = variants
+      .filter((v) => v.content_type === "video/mp4" && v.url)
+      .map((v) => ({
+        url: v.url,
+        bitrate: v.bitrate || 0,
+      }))
+      .sort((a, b) => b.bitrate - a.bitrate);
+
+    return {
+      url: m.media_url_https,
+      width: m.original_info?.width ?? m.sizes?.large?.w ?? 1,
+      height: m.original_info?.height ?? m.sizes?.large?.h ?? 1,
+      type: m.type || "photo",
+      videoUrl: mp4Variants[0]?.url || null,
+      videoVariants: mp4Variants,
+    };
+  });
 
   return {
     id: tweetId,

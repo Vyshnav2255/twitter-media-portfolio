@@ -506,16 +506,8 @@ const openLightbox = (el, mediaItem) => {
 
   el.style.visibility = "hidden";
 
-  lightboxClone = el.cloneNode(true);
-  lightboxClone.classList.add("lightbox-active");
-  // Remove edit mode overlay from clone
-  const overlayEl = lightboxClone.querySelector(".grid-item-hidden-overlay");
-  if (overlayEl) overlayEl.remove();
-  // Ensure video badge stays visible in lightbox
-  const cloneBadge = lightboxClone.querySelector(".grid-item-video-badge");
-  if (cloneBadge && image && image.type === "video") {
-    cloneBadge.style.display = "";
-  }
+  lightboxClone = document.createElement("div");
+  lightboxClone.className = "grid-item lightbox-active";
   lightboxClone.style.width = `${startW}px`;
   lightboxClone.style.height = `${startH}px`;
   lightboxClone.style.display = "";
@@ -523,12 +515,37 @@ const openLightbox = (el, mediaItem) => {
   lightboxClone.style.transform = `translate3d(${startX}px, ${startY}px, 0)`;
 
   if (image) {
-    const hiRes = new Image();
-    hiRes.src = twitterImageUrl(image.url, "4096x4096");
-    hiRes.alt = "";
-    hiRes.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px;opacity:0;transition:opacity 0.3s ease;";
-    hiRes.onload = () => { hiRes.style.opacity = "1"; };
-    lightboxClone.appendChild(hiRes);
+    if (image.type === "video" && image.videoUrl) {
+      const video = document.createElement("video");
+      video.src = `/api/video-proxy?src=${encodeURIComponent(image.videoUrl)}`;
+      video.poster = twitterImageUrl(image.url, "medium");
+      video.controls = true;
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
+      video.muted = true;
+      video.autoplay = true;
+      video.preload = "metadata";
+      video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px;opacity:1;pointer-events:auto;z-index:999;";
+      video.addEventListener("loadedmetadata", () => {
+        video.currentTime = 0;
+      });
+      video.addEventListener("canplay", () => {
+        const promise = video.play();
+        if (promise && promise.catch) promise.catch(() => {});
+      });
+      video.addEventListener("error", (event) => {
+        console.error("Video playback error", event);
+      });
+      lightboxClone.appendChild(video);
+      lightboxClone.classList.add("lightbox-video");
+    } else {
+      const hiRes = new Image();
+      hiRes.src = twitterImageUrl(image.url, "4096x4096");
+      hiRes.alt = "";
+      hiRes.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px;opacity:0;transition:opacity 0.3s ease;";
+      hiRes.onload = () => { hiRes.style.opacity = "1"; };
+      lightboxClone.appendChild(hiRes);
+    }
   }
   document.body.appendChild(lightboxClone);
 
@@ -553,6 +570,13 @@ const openLightbox = (el, mediaItem) => {
 
   const lightboxInfo = document.getElementById("lightbox-info");
   lightboxInfo.style.top = `${endY + targetH + 16}px`;
+
+  const videoElement = lightboxClone.querySelector("video");
+  if (videoElement) {
+    videoElement.addEventListener("loadedmetadata", () => {
+      videoElement.currentTime = 0;
+    });
+  }
 
   state.lightboxItem._endX = endX;
   state.lightboxItem._endY = endY;
