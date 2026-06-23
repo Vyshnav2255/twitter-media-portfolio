@@ -524,6 +524,8 @@ const openLightbox = (el, mediaItem) => {
       video.setAttribute("webkit-playsinline", "");
       video.muted = true;
       video.autoplay = true;
+      video.loop = true;
+      video.setAttribute("loop", "");
       video.preload = "metadata";
       video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px;opacity:1;pointer-events:auto;z-index:999;";
       video.addEventListener("loadedmetadata", () => {
