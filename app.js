@@ -23,6 +23,7 @@ const GRID_CONFIG = {
 const state = {
   cameraOffset: { x: 0, y: 0 },
   targetOffset: { x: 0, y: 0 },
+  velocity: { x: 0, y: 0 },
   isDragging: false,
   previousMousePosition: { x: 0, y: 0 },
   dragStartPosition: { x: 0, y: 0 },
@@ -646,13 +647,42 @@ const closeLightbox = () => {
 
 // --- Input Handlers ---
 
+const getDragScale = (isTouch) => {
+  if (!isTouch) return 1;
+  const width = window.innerWidth;
+  if (width <= 420) return 1.05;
+  if (width <= 620) return 1.0;
+  if (width <= 820) return 0.95;
+  return 0.9;
+};
+
 const onMouseDown = (e) => {
   if (state.lightboxOpen) return;
   state.isDragging = true;
   state.hasDragged = false;
   state.dragStartPosition = { x: e.clientX, y: e.clientY };
+  state.velocity.x = 0;
+  state.velocity.y = 0;
   viewport.classList.add("grabbing");
   state.previousMousePosition = { x: e.clientX, y: e.clientY };
+};
+
+const applyDragDelta = (dx, dy, isTouch = false) => {
+  const bounds = getScrollBounds();
+  const scale = getDragScale(isTouch);
+  const dampen = (value, min, max) => {
+    if (value < min) return min + (value - min) * 0.35;
+    if (value > max) return max + (value - max) * 0.35;
+    return value;
+  };
+
+  const scaledDx = dx * scale;
+  const scaledDy = dy * scale;
+
+  state.targetOffset.x = dampen(state.targetOffset.x - scaledDx, bounds.minX, bounds.maxX);
+  state.targetOffset.y = dampen(state.targetOffset.y - scaledDy, bounds.minY, bounds.maxY);
+  state.velocity.x = -scaledDx;
+  state.velocity.y = -scaledDy;
 };
 
 const onMouseMove = (e) => {
@@ -665,9 +695,11 @@ const onMouseMove = (e) => {
   }
 
   const lockX = activeLayout === "feed" || activeLayout === "grid";
-  if (!lockX) state.targetOffset.x -= e.clientX - state.previousMousePosition.x;
-  state.targetOffset.y -= e.clientY - state.previousMousePosition.y;
-  clampTargetOffset();
+  if (!lockX) applyDragDelta(e.clientX - state.previousMousePosition.x, 0, false);
+  applyDragDelta(0, e.clientY - state.previousMousePosition.y, false);
+  state.cameraOffset.x = state.targetOffset.x;
+  state.cameraOffset.y = state.targetOffset.y;
+  renderVisibleItems();
   state.previousMousePosition = { x: e.clientX, y: e.clientY };
 };
 
@@ -675,6 +707,7 @@ const onMouseUp = (e) => {
   const wasDragging = state.isDragging;
   state.isDragging = false;
   viewport.classList.remove("grabbing");
+  clampAllOffsets();
 
   if (wasDragging && !state.hasDragged && !state.lightboxOpen) {
     const target = e.target.closest(".grid-item");
@@ -706,9 +739,11 @@ const onTouchMove = (e) => {
   if (e.touches.length === 1 && state.touchStart) {
     e.preventDefault();
     const lockX = activeLayout === "feed" || activeLayout === "grid";
-    if (!lockX) state.targetOffset.x -= e.touches[0].clientX - state.touchStart.x;
-    state.targetOffset.y -= e.touches[0].clientY - state.touchStart.y;
-    clampTargetOffset();
+    if (!lockX) applyDragDelta(e.touches[0].clientX - state.touchStart.x, 0, true);
+    applyDragDelta(0, e.touches[0].clientY - state.touchStart.y, true);
+    state.cameraOffset.x = state.targetOffset.x;
+    state.cameraOffset.y = state.targetOffset.y;
+    renderVisibleItems();
     state.touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   }
 };
@@ -740,6 +775,36 @@ const onWindowResize = () => {
 
 const animate = () => {
   requestAnimationFrame(animate);
+
+  const bounds = getScrollBounds();
+
+  if (!state.isDragging) {
+    const friction = window.innerWidth <= 420 ? 0.96 : window.innerWidth <= 820 ? 0.92 : 0.95;
+    state.targetOffset.x += state.velocity.x;
+    state.targetOffset.y += state.velocity.y;
+    state.velocity.x *= friction;
+    state.velocity.y *= friction;
+
+    if (Math.abs(state.velocity.x) < 0.03) state.velocity.x = 0;
+    if (Math.abs(state.velocity.y) < 0.03) state.velocity.y = 0;
+
+    if (state.targetOffset.x < bounds.minX) {
+      state.targetOffset.x += (bounds.minX - state.targetOffset.x) * 0.15;
+      state.velocity.x *= 0.6;
+    }
+    if (state.targetOffset.x > bounds.maxX) {
+      state.targetOffset.x -= (state.targetOffset.x - bounds.maxX) * 0.15;
+      state.velocity.x *= 0.6;
+    }
+    if (state.targetOffset.y < bounds.minY) {
+      state.targetOffset.y += (bounds.minY - state.targetOffset.y) * 0.15;
+      state.velocity.y *= 0.6;
+    }
+    if (state.targetOffset.y > bounds.maxY) {
+      state.targetOffset.y -= (state.targetOffset.y - bounds.maxY) * 0.15;
+      state.velocity.y *= 0.6;
+    }
+  }
 
   const dx = state.targetOffset.x - state.cameraOffset.x;
   const dy = state.targetOffset.y - state.cameraOffset.y;
