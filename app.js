@@ -46,6 +46,15 @@ const canShowEditControls = () => {
   return host === "localhost" || host === "127.0.0.1" || new URLSearchParams(window.location.search).has("edit");
 };
 
+const PROFILE_DETAILS = {
+  shortBio: "friendly neighbourhood designer ✦ prev. @brainfishAI ✦ yelling (nicely) about design, code, books & cars",
+  websiteUrl: "https://vyshnav.xyz/",
+  websiteLabel: "Personal website",
+  sourceCodeUrl: "https://github.com/Vyshnav2255/twitter-media-portfolio",
+};
+
+let infoPopoverEl = null;
+
 // --- Theme ---
 
 const getSystemTheme = () =>
@@ -968,6 +977,112 @@ const createThemeToggle = () => {
   return btn;
 };
 
+const createInfoToggle = () => {
+  const btn = document.createElement("button");
+  btn.id = "info-toggle";
+  btn.className = "toolbar-btn";
+  btn.title = "Info";
+  btn.innerHTML = `<img src="assets/info.svg" alt="Info" width="18" height="18">`;
+  btn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleInfoPopover(btn);
+  });
+  return btn;
+};
+
+const positionInfoPopover = (buttonEl) => {
+  if (!infoPopoverEl || !buttonEl) return;
+  const rect = buttonEl.getBoundingClientRect();
+  const { width: popoverWidth, height: popoverHeight } = infoPopoverEl.getBoundingClientRect();
+  const left = rect.left + rect.width / 2 - popoverWidth / 2;
+  let top = rect.top - popoverHeight - 10;
+  let adjustedLeft = Math.min(Math.max(12, left), window.innerWidth - popoverWidth - 12);
+  if (top < 12) top = rect.bottom + 10;
+  infoPopoverEl.style.left = `${adjustedLeft}px`;
+  infoPopoverEl.style.top = `${top}px`;
+};
+
+const createInfoPopover = () => {
+  const popover = document.createElement("div");
+  popover.id = "info-popover";
+  popover.className = "info-popover";
+  popover.addEventListener("click", (event) => event.stopPropagation());
+  document.body.appendChild(popover);
+  infoPopoverEl = popover;
+  renderInfoPopover();
+};
+
+const renderInfoPopover = () => {
+  if (!infoPopoverEl) return;
+
+  const handle = CONFIG?.handle || PROFILE?.handle || PROFILE?.name || "";
+  const displayName = PROFILE?.name || handle;
+  const avatar = PROFILE?.avatar || "";
+  const bio = PROFILE_DETAILS.shortBio || PROFILE?.bio || "";
+  const websiteUrl = PROFILE_DETAILS.websiteUrl || PROFILE?.url || "";
+  const twitterUrl = PROFILE?.url || `https://x.com/${handle}`;
+  const sourceCodeUrl = PROFILE_DETAILS.sourceCodeUrl || "";
+
+  infoPopoverEl.innerHTML = `
+    <div class="info-popover-header">
+      <img class="info-avatar" src="${avatar}" alt="${displayName} avatar">
+      <div>
+        <div class="info-name">${displayName}</div>
+        <a class="info-handle" href="${twitterUrl}" target="_blank" rel="noopener">@${handle}</a>
+      </div>
+    </div>
+    <div class="info-bio">${bio}</div>
+    <div class="info-actions">
+      ${websiteUrl ? `<a class="info-link" href="${websiteUrl}" target="_blank" rel="noopener">${PROFILE_DETAILS.websiteLabel || "Website"}</a>` : ""}
+      ${sourceCodeUrl ? `<a class="info-link" href="${sourceCodeUrl}" target="_blank" rel="noopener">Source code</a>` : ""}
+    </div>
+  `;
+};
+
+const positionInfoPopoverHandler = (buttonEl) => () => positionInfoPopover(buttonEl);
+
+const closeInfoPopover = () => {
+  if (!infoPopoverEl) return;
+  infoPopoverEl.classList.remove("visible");
+  document.removeEventListener("click", onDocumentClickCloseInfo);
+  window.removeEventListener("keydown", onDocumentKeyDownCloseInfo);
+  window.removeEventListener("resize", infoPopoverResizeHandler);
+};
+
+let infoPopoverResizeHandler = null;
+
+const toggleInfoPopover = (buttonEl) => {
+  if (!infoPopoverEl) createInfoPopover();
+  const isVisible = infoPopoverEl.classList.toggle("visible");
+  renderInfoPopover();
+  if (isVisible) {
+    positionInfoPopover(buttonEl);
+    document.addEventListener("click", onDocumentClickCloseInfo);
+    window.addEventListener("keydown", onDocumentKeyDownCloseInfo);
+    infoPopoverResizeHandler = positionInfoPopoverHandler(buttonEl);
+    window.addEventListener("resize", infoPopoverResizeHandler);
+  } else {
+    document.removeEventListener("click", onDocumentClickCloseInfo);
+    window.removeEventListener("keydown", onDocumentKeyDownCloseInfo);
+    if (infoPopoverResizeHandler) {
+      window.removeEventListener("resize", infoPopoverResizeHandler);
+      infoPopoverResizeHandler = null;
+    }
+  }
+};
+
+const onDocumentClickCloseInfo = (event) => {
+  if (!infoPopoverEl?.contains(event.target) && event.target.id !== "info-toggle") {
+    closeInfoPopover();
+  }
+};
+
+const onDocumentKeyDownCloseInfo = (event) => {
+  if (event.key === "Escape") {
+    closeInfoPopover();
+  }
+};
+
 // --- Profile header ---
 
 const createProfileHeader = () => {
@@ -1005,6 +1120,11 @@ const createToolbar = () => {
   rightGroup.className = "toolbar-group";
   rightGroup.appendChild(createThemeToggle());
   toolbar.appendChild(rightGroup);
+
+  const infoButtonGroup = document.createElement("div");
+  infoButtonGroup.className = "toolbar-group";
+  infoButtonGroup.appendChild(createInfoToggle());
+  toolbar.appendChild(infoButtonGroup);
 
   document.body.appendChild(toolbar);
 };
