@@ -3,10 +3,133 @@
     "name": "˗ˏˋ vyshnav ˊˎ˗",
     "handle": "vyshnav_xyz",
     "bio": "friendly neighbourhood designer ✦ prev. @brainfishAI ✦ yelling (nicely) about design, code, books & cars\n\n/open to new opportunities",
-    "avatar": "https://pbs.twimg.com/profile_images/1882450514920755200/qOxq75lx_400x400.jpg",
+    "avatar": "https://pbs.twimg.com/profile_images/2070885758257524736/xeLtMTas_400x400.jpg",
     "url": "https://x.com/vyshnav_xyz"
   },
   "posts": [
+    {
+      "id": "2071908035531043021",
+      "text": "💫 few visuals generated using the Blueprint Maker plugin\n\ngot any feature ideas? https://t.co/3VkXSxmZag",
+      "url": "https://x.com/vyshnav_xyz/status/2071908035531043021",
+      "postedAt": "Tue Jun 30 10:45:44 +0000 2026",
+      "images": [
+        {
+          "url": "https://pbs.twimg.com/media/HMDlTPvWgAEU8WB.png",
+          "width": 2400,
+          "height": 1800,
+          "type": "photo",
+          "videoUrl": null,
+          "videoVariants": []
+        },
+        {
+          "url": "https://pbs.twimg.com/media/HMDlTP3W8AAZrHS.jpg",
+          "width": 2400,
+          "height": 1800,
+          "type": "photo",
+          "videoUrl": null,
+          "videoVariants": []
+        },
+        {
+          "url": "https://pbs.twimg.com/media/HMDlTP0W8AAm65J.jpg",
+          "width": 2400,
+          "height": 1800,
+          "type": "photo",
+          "videoUrl": null,
+          "videoVariants": []
+        },
+        {
+          "url": "https://pbs.twimg.com/media/HMDlTPzW0AAM66L.jpg",
+          "width": 1800,
+          "height": 1800,
+          "type": "photo",
+          "videoUrl": null,
+          "videoVariants": []
+        }
+      ],
+      "likeCount": 39,
+      "repostCount": 4,
+      "bookmarkCount": 46
+    },
+    {
+      "id": "2071592348543492099",
+      "text": "more updates to Blueprint Maker ✨\n\n- grids snap to content\n- diagonal line fills\n- cleaner ui\n- one-click style copying\n- faster performance\n\nwish I could share it. @figma, please make generative plugins publishable https://t.co/NVw26l91w0",
+      "url": "https://x.com/vyshnav_xyz/status/2071592348543492099",
+      "postedAt": "Mon Jun 29 13:51:18 +0000 2026",
+      "images": [
+        {
+          "url": "https://pbs.twimg.com/amplify_video_thumb/2071590995050020864/img/Ep0-jz1FAVbKG_aZ.jpg",
+          "width": 3118,
+          "height": 2324,
+          "type": "video",
+          "videoUrl": "https://video.twimg.com/amplify_video/2071590995050020864/vid/avc1/2896x2160/RemR8uxaaEbR_Jvu.mp4?tag=28",
+          "videoVariants": [
+            {
+              "url": "https://video.twimg.com/amplify_video/2071590995050020864/vid/avc1/2896x2160/RemR8uxaaEbR_Jvu.mp4?tag=28",
+              "bitrate": 25128000
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2071590995050020864/vid/avc1/1448x1080/y11Ij9B4dytmCULx.mp4?tag=28",
+              "bitrate": 10368000
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2071590995050020864/vid/avc1/964x720/jPNfSkWvBULeezCJ.mp4?tag=28",
+              "bitrate": 2176000
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2071590995050020864/vid/avc1/482x360/06C67Rz31P78zGpP.mp4?tag=28",
+              "bitrate": 832000
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2071590995050020864/vid/avc1/362x270/beEOD8u5XRvjq5nb.mp4?tag=28",
+              "bitrate": 256000
+            }
+          ]
+        }
+      ],
+      "likeCount": 24,
+      "repostCount": 0,
+      "bookmarkCount": 16
+    },
+    {
+      "id": "2071549853105373400",
+      "text": "🧪 Share &lt;&gt; shape morphing https://t.co/MEvP2KY4Lh",
+      "url": "https://x.com/vyshnav_xyz/status/2071549853105373400",
+      "postedAt": "Mon Jun 29 11:02:27 +0000 2026",
+      "images": [
+        {
+          "url": "https://pbs.twimg.com/amplify_video_thumb/2071549729583087616/img/ZV5AphzJojoYol84.jpg",
+          "width": 2784,
+          "height": 2178,
+          "type": "video",
+          "videoUrl": "https://video.twimg.com/amplify_video/2071549729583087616/vid/avc1/2760x2160/NHoJ0-sQTRfXYq4c.mp4?tag=28",
+          "videoVariants": [
+            {
+              "url": "https://video.twimg.com/amplify_video/2071549729583087616/vid/avc1/2760x2160/NHoJ0-sQTRfXYq4c.mp4?tag=28",
+              "bitrate": 25128000
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2071549729583087616/vid/avc1/1380x1080/wnbqTOp6OX6lTcMM.mp4?tag=28",
+              "bitrate": 10368000
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2071549729583087616/vid/avc1/920x720/6p7gsAZqdUQBMqWC.mp4?tag=28",
+              "bitrate": 2176000
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2071549729583087616/vid/avc1/460x360/KDMsAjpVQf2H_4Q0.mp4?tag=28",
+              "bitrate": 832000
+            },
+            {
+              "url": "https://video.twimg.com/amplify_video/2071549729583087616/vid/avc1/344x270/Qg8MmgnsggVzaWvE.mp4?tag=28",
+              "bitrate": 256000
+            }
+          ]
+        }
+      ],
+      "likeCount": 7,
+      "repostCount": 1,
+      "bookmarkCount": 1
+    },
     {
       "id": "2070774301880635822",
       "text": "a few more iterations later… the plugin is getting there. also gave the UI a refresh 🧼 https://t.co/cbKcQmsJ90",
@@ -43,9 +166,9 @@
           ]
         }
       ],
-      "likeCount": 0,
-      "repostCount": 0,
-      "bookmarkCount": 0
+      "likeCount": 37,
+      "repostCount": 1,
+      "bookmarkCount": 26
     },
     {
       "id": "2070510796736790675",
@@ -118,9 +241,9 @@
           ]
         }
       ],
-      "likeCount": 45,
+      "likeCount": 59,
       "repostCount": 2,
-      "bookmarkCount": 24
+      "bookmarkCount": 31
     },
     {
       "id": "2070395616895897857",
@@ -158,9 +281,9 @@
           ]
         }
       ],
-      "likeCount": 114,
+      "likeCount": 133,
       "repostCount": 3,
-      "bookmarkCount": 87
+      "bookmarkCount": 99
     },
     {
       "id": "2070387964144996558",
@@ -177,8 +300,8 @@
           "videoVariants": []
         }
       ],
-      "likeCount": 10,
-      "repostCount": 1,
+      "likeCount": 11,
+      "repostCount": 0,
       "bookmarkCount": 3
     },
     {
@@ -338,7 +461,7 @@
       ],
       "likeCount": 8,
       "repostCount": 0,
-      "bookmarkCount": 5
+      "bookmarkCount": 7
     },
     {
       "id": "2068578261333127431",
@@ -406,9 +529,9 @@
           "videoVariants": []
         }
       ],
-      "likeCount": 3476,
+      "likeCount": 3472,
       "repostCount": 241,
-      "bookmarkCount": 764
+      "bookmarkCount": 763
     },
     {
       "id": "2067094741511192802",
@@ -529,7 +652,7 @@
       ],
       "likeCount": 125,
       "repostCount": 1,
-      "bookmarkCount": 31
+      "bookmarkCount": 30
     },
     {
       "id": "2065682412412272852",
@@ -944,9 +1067,9 @@
           "videoVariants": []
         }
       ],
-      "likeCount": 5097,
+      "likeCount": 5095,
       "repostCount": 252,
-      "bookmarkCount": 3613
+      "bookmarkCount": 3609
     },
     {
       "id": "2059966267130560839",
@@ -3363,7 +3486,7 @@
           ]
         }
       ],
-      "likeCount": 195,
+      "likeCount": 194,
       "repostCount": 9,
       "bookmarkCount": 132
     },
@@ -3947,9 +4070,9 @@
           "videoVariants": []
         }
       ],
-      "likeCount": 1208,
+      "likeCount": 1206,
       "repostCount": 63,
-      "bookmarkCount": 504
+      "bookmarkCount": 503
     },
     {
       "id": "1917479635002221053",
@@ -4234,9 +4357,9 @@
           ]
         }
       ],
-      "likeCount": 5136,
-      "repostCount": 360,
-      "bookmarkCount": 3291
+      "likeCount": 5132,
+      "repostCount": 359,
+      "bookmarkCount": 3289
     },
     {
       "id": "1911295026912460893",
@@ -7926,7 +8049,7 @@
           "videoVariants": []
         }
       ],
-      "likeCount": 904,
+      "likeCount": 905,
       "repostCount": 12,
       "bookmarkCount": 128
     },
@@ -10463,7 +10586,7 @@
       ],
       "likeCount": 24,
       "repostCount": 2,
-      "bookmarkCount": 6
+      "bookmarkCount": 7
     },
     {
       "id": "1726597262535733397",
@@ -10550,7 +10673,7 @@
           ]
         }
       ],
-      "likeCount": 2055,
+      "likeCount": 2054,
       "repostCount": 201,
       "bookmarkCount": 1214
     },
@@ -11834,7 +11957,7 @@
       ],
       "likeCount": 384,
       "repostCount": 35,
-      "bookmarkCount": 88
+      "bookmarkCount": 87
     },
     {
       "id": "1705149865058324714",
@@ -13091,9 +13214,9 @@
           "videoVariants": []
         }
       ],
-      "likeCount": 1060,
+      "likeCount": 1061,
       "repostCount": 114,
-      "bookmarkCount": 647
+      "bookmarkCount": 646
     },
     {
       "id": "1688894046171729921",
@@ -14746,7 +14869,7 @@
           "videoVariants": []
         }
       ],
-      "likeCount": 282,
+      "likeCount": 283,
       "repostCount": 33,
       "bookmarkCount": 255
     },
@@ -14811,7 +14934,7 @@
         }
       ],
       "likeCount": 2030,
-      "repostCount": 180,
+      "repostCount": 179,
       "bookmarkCount": 134
     },
     {
@@ -15441,7 +15564,7 @@
           "videoVariants": []
         }
       ],
-      "likeCount": 289,
+      "likeCount": 288,
       "repostCount": 11,
       "bookmarkCount": 26
     },
@@ -19294,7 +19417,7 @@
           ]
         }
       ],
-      "likeCount": 140,
+      "likeCount": 139,
       "repostCount": 10,
       "bookmarkCount": 9
     },
@@ -19590,63 +19713,6 @@
         }
       ],
       "likeCount": 1,
-      "repostCount": 0,
-      "bookmarkCount": 0
-    },
-    {
-      "id": "1620799259678498816",
-      "text": "My initial plan was to make a 3D version using Drop &amp; Inner shadows. Due to time constraints, I had to drop the plan. Here is how it looked 👇 https://t.co/u492QeGIyw",
-      "url": "https://x.com/vyshnav_xyz/status/1620799259678498816",
-      "postedAt": "Wed Feb 01 15:00:31 +0000 2023",
-      "images": [
-        {
-          "url": "https://pbs.twimg.com/media/Fn48OQUXwAQHHnz.jpg",
-          "width": 1600,
-          "height": 1200,
-          "type": "photo",
-          "videoUrl": null,
-          "videoVariants": []
-        }
-      ],
-      "likeCount": 2,
-      "repostCount": 0,
-      "bookmarkCount": 0
-    },
-    {
-      "id": "1620798615571828736",
-      "text": "I used 206 layers to make this illustration. The stars in the BG were created using the NT plugin. https://t.co/sGusftdqTi",
-      "url": "https://x.com/vyshnav_xyz/status/1620798615571828736",
-      "postedAt": "Wed Feb 01 14:57:57 +0000 2023",
-      "images": [
-        {
-          "url": "https://pbs.twimg.com/media/Fn47SwJXkBQvhzr.jpg",
-          "width": 1514,
-          "height": 960,
-          "type": "photo",
-          "videoUrl": null,
-          "videoVariants": []
-        }
-      ],
-      "likeCount": 6,
-      "repostCount": 0,
-      "bookmarkCount": 0
-    },
-    {
-      "id": "1620793959986638848",
-      "text": "New wallpaper! 🏕️\nThanks @realvjy https://t.co/WDXONgViw0",
-      "url": "https://x.com/vyshnav_xyz/status/1620793959986638848",
-      "postedAt": "Wed Feb 01 14:39:27 +0000 2023",
-      "images": [
-        {
-          "url": "https://pbs.twimg.com/media/Fn43gBGWIAQph9F.jpg",
-          "width": 1920,
-          "height": 1080,
-          "type": "photo",
-          "videoUrl": null,
-          "videoVariants": []
-        }
-      ],
-      "likeCount": 9,
       "repostCount": 0,
       "bookmarkCount": 0
     }
