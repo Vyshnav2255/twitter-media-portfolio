@@ -15,7 +15,7 @@ const GRID_CONFIG = {
   COLS: 5,
   GAP: 24,
   MIN_ITEM_WIDTH: 150,
-  easingFactor: 0.1,
+  easingFactor: 1,
   POOL_SIZE: 500,
   BUFFER: 600,
 };
@@ -681,19 +681,11 @@ const onMouseDown = (e) => {
 const applyDragDelta = (dx, dy, isTouch = false) => {
   const bounds = getScrollBounds();
   const scale = getDragScale(isTouch);
-  const dampen = (value, min, max) => {
-    if (value < min) return min + (value - min) * 0.35;
-    if (value > max) return max + (value - max) * 0.35;
-    return value;
-  };
-
   const scaledDx = dx * scale;
   const scaledDy = dy * scale;
 
-  state.targetOffset.x = dampen(state.targetOffset.x - scaledDx, bounds.minX, bounds.maxX);
-  state.targetOffset.y = dampen(state.targetOffset.y - scaledDy, bounds.minY, bounds.maxY);
-  state.velocity.x = -scaledDx;
-  state.velocity.y = -scaledDy;
+  state.targetOffset.x = Math.min(Math.max(state.targetOffset.x - scaledDx, bounds.minX), bounds.maxX);
+  state.targetOffset.y = Math.min(Math.max(state.targetOffset.y - scaledDy, bounds.minY), bounds.maxY);
 };
 
 const onMouseMove = (e) => {
@@ -770,6 +762,9 @@ const onWheel = (e) => {
   if (!lockX) state.targetOffset.x += e.deltaX;
   state.targetOffset.y += e.deltaY;
   clampTargetOffset();
+  state.cameraOffset.x = state.targetOffset.x;
+  state.cameraOffset.y = state.targetOffset.y;
+  renderVisibleItems();
 };
 
 const onWindowResize = () => {
@@ -787,42 +782,12 @@ const onWindowResize = () => {
 const animate = () => {
   requestAnimationFrame(animate);
 
-  const bounds = getScrollBounds();
-
-  if (!state.isDragging) {
-    const friction = window.innerWidth <= 420 ? 0.96 : window.innerWidth <= 820 ? 0.92 : 0.95;
-    state.targetOffset.x += state.velocity.x;
-    state.targetOffset.y += state.velocity.y;
-    state.velocity.x *= friction;
-    state.velocity.y *= friction;
-
-    if (Math.abs(state.velocity.x) < 0.03) state.velocity.x = 0;
-    if (Math.abs(state.velocity.y) < 0.03) state.velocity.y = 0;
-
-    if (state.targetOffset.x < bounds.minX) {
-      state.targetOffset.x += (bounds.minX - state.targetOffset.x) * 0.15;
-      state.velocity.x *= 0.6;
-    }
-    if (state.targetOffset.x > bounds.maxX) {
-      state.targetOffset.x -= (state.targetOffset.x - bounds.maxX) * 0.15;
-      state.velocity.x *= 0.6;
-    }
-    if (state.targetOffset.y < bounds.minY) {
-      state.targetOffset.y += (bounds.minY - state.targetOffset.y) * 0.15;
-      state.velocity.y *= 0.6;
-    }
-    if (state.targetOffset.y > bounds.maxY) {
-      state.targetOffset.y -= (state.targetOffset.y - bounds.maxY) * 0.15;
-      state.velocity.y *= 0.6;
-    }
-  }
-
   const dx = state.targetOffset.x - state.cameraOffset.x;
   const dy = state.targetOffset.y - state.cameraOffset.y;
 
   if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
-    state.cameraOffset.x += dx * GRID_CONFIG.easingFactor;
-    state.cameraOffset.y += dy * GRID_CONFIG.easingFactor;
+    state.cameraOffset.x = state.targetOffset.x;
+    state.cameraOffset.y = state.targetOffset.y;
     renderVisibleItems();
   }
 };
