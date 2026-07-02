@@ -150,34 +150,6 @@ const saveLocalHiddenState = () => {
   } catch {}
 };
 
-const getScrollBounds = () => {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const lockX = activeLayout === "feed" || activeLayout === "grid";
-
-  return {
-    minX: 0,
-    maxX: lockX ? 0 : Math.max(totalWidth - vw, 0),
-    minY: 0,
-    maxY: Math.max(maxColHeight - vh + GRID_CONFIG.GAP, 0),
-  };
-};
-
-const clampOffset = (offset) => {
-  const bounds = getScrollBounds();
-  offset.x = Math.min(Math.max(offset.x, bounds.minX), bounds.maxX);
-  offset.y = Math.min(Math.max(offset.y, bounds.minY), bounds.maxY);
-};
-
-const clampTargetOffset = () => {
-  clampOffset(state.targetOffset);
-};
-
-const clampAllOffsets = () => {
-  clampOffset(state.targetOffset);
-  clampOffset(state.cameraOffset);
-};
-
 const getResponsiveGridMetrics = (vw) => {
   const gap = GRID_CONFIG.GAP;
   const sidePadding = 24;
@@ -341,7 +313,8 @@ const createPool = () => {
   freePool.length = 0;
   activeMap.clear();
 
-  for (let i = 0; i < GRID_CONFIG.POOL_SIZE; i++) {
+  const poolSize = Math.max(GRID_CONFIG.POOL_SIZE, VISIBLE_MEDIA_ITEMS.length + 200);
+  for (let i = 0; i < poolSize; i++) {
     const el = document.createElement("div");
     el.className = "grid-item";
     el.style.display = "none";
@@ -381,17 +354,18 @@ const twitterImageUrl = (url, size = "small") => {
 const renderVisibleItems = () => {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const buf = GRID_CONFIG.BUFFER;
 
   const lightboxEl = state.lightboxItem?.element || null;
-  const camX = state.cameraOffset.x;
-  const camY = state.cameraOffset.y;
 
-  // For feed/grid, center content horizontally using an offset
   let centerOffsetX = 0;
   if (activeLayout === "feed" || activeLayout === "grid") {
     centerOffsetX = Math.floor((vw - totalWidth) / 2);
   }
+
+  const contentWidth = Math.max(totalWidth + 48, vw);
+  const contentHeight = Math.max(maxColHeight + 48, vh);
+  grid.style.width = `${contentWidth}px`;
+  grid.style.height = `${contentHeight}px`;
 
   const visibleThisFrame = new Set();
 
@@ -400,20 +374,8 @@ const renderVisibleItems = () => {
 
     const worldX = item.x + centerOffsetX;
     const worldY = item.y;
-    const sx = worldX - camX;
-    const sy = worldY - camY;
-
-    const txs = worldX - state.targetOffset.x;
-    const tys = worldY - state.targetOffset.y;
-
-    const visibleAtCam =
-      sx + item.w >= -buf && sx <= vw + buf &&
-      sy + item.h >= -buf && sy <= vh + buf;
-    const visibleAtTarget =
-      txs + item.w >= -buf && txs <= vw + buf &&
-      tys + item.h >= -buf && tys <= vh + buf;
-
-    if (!visibleAtCam && !visibleAtTarget) continue;
+    const sx = worldX;
+    const sy = worldY;
 
     const visKey = item.key;
     visibleThisFrame.add(visKey);
@@ -423,7 +385,6 @@ const renderVisibleItems = () => {
       if (existing.poolEl !== lightboxEl) {
         existing.poolEl.style.transform = `translate3d(${sx}px, ${sy}px, 0)`;
       }
-      // Update hidden state in edit mode
       if (editMode) {
         existing.poolEl.classList.toggle("hidden-post", isMediaHidden(item.mediaItem));
       } else {
@@ -442,7 +403,6 @@ const renderVisibleItems = () => {
         img.alt = item.post.text.substring(0, 60);
       }
 
-      // Show/hide video badge
       const videoBadge = el.querySelector(".grid-item-video-badge");
       if (videoBadge) {
         videoBadge.style.display = item.image.type === "video" ? "" : "none";
@@ -658,118 +618,46 @@ const closeLightbox = () => {
 
 // --- Input Handlers ---
 
-const getDragScale = (isTouch) => {
-  if (!isTouch) return 1;
-  const width = window.innerWidth;
-  if (width <= 420) return 1.05;
-  if (width <= 620) return 1.0;
-  if (width <= 820) return 0.95;
-  return 0.9;
-};
-
 const onMouseDown = (e) => {
   if (state.lightboxOpen) return;
+  const target = e.target.closest(".grid-item");
+  if (!target) return;
+
   state.isDragging = true;
   state.hasDragged = false;
   state.dragStartPosition = { x: e.clientX, y: e.clientY };
-  state.velocity.x = 0;
-  state.velocity.y = 0;
-  viewport.classList.add("grabbing");
   state.previousMousePosition = { x: e.clientX, y: e.clientY };
 };
 
-const applyDragDelta = (dx, dy, isTouch = false) => {
-  const bounds = getScrollBounds();
-  const scale = getDragScale(isTouch);
-  const scaledDx = dx * scale;
-  const scaledDy = dy * scale;
-
-  state.targetOffset.x = Math.min(Math.max(state.targetOffset.x - scaledDx, bounds.minX), bounds.maxX);
-  state.targetOffset.y = Math.min(Math.max(state.targetOffset.y - scaledDy, bounds.minY), bounds.maxY);
-};
-
-const onMouseMove = (e) => {
-  if (!state.isDragging) return;
-
-  const totalDx = e.clientX - state.dragStartPosition.x;
-  const totalDy = e.clientY - state.dragStartPosition.y;
-  if (Math.sqrt(totalDx * totalDx + totalDy * totalDy) > DRAG_THRESHOLD) {
-    state.hasDragged = true;
-  }
-
-  const lockX = activeLayout === "feed" || activeLayout === "grid";
-  if (!lockX) applyDragDelta(e.clientX - state.previousMousePosition.x, 0, false);
-  applyDragDelta(0, e.clientY - state.previousMousePosition.y, false);
-  state.cameraOffset.x = state.targetOffset.x;
-  state.cameraOffset.y = state.targetOffset.y;
-  renderVisibleItems();
-  state.previousMousePosition = { x: e.clientX, y: e.clientY };
-};
+const onMouseMove = () => {};
 
 const onMouseUp = (e) => {
-  const wasDragging = state.isDragging;
+  if (!state.isDragging) return;
   state.isDragging = false;
-  viewport.classList.remove("grabbing");
-  clampAllOffsets();
 
-  if (wasDragging && !state.hasDragged && !state.lightboxOpen) {
-    const target = e.target.closest(".grid-item");
-    if (target) {
-      const mediaItem = elToMediaItem.get(target);
-      if (!mediaItem) return;
+  const target = e.target.closest(".grid-item");
+  if (!target || state.lightboxOpen) return;
 
-      if (editMode) {
-        // Toggle visibility in edit mode with smooth animation
-        toggleMediaHidden(mediaItem);
-        saveHiddenIds();
-        updateEditCounter();
-        // Animate the toggle smoothly — just update class, CSS handles transition
-        renderVisibleItems();
-      } else {
-        openLightbox(target, mediaItem);
-      }
-    }
-  }
-};
+  const mediaItem = elToMediaItem.get(target);
+  if (!mediaItem) return;
 
-const onTouchStart = (e) => {
-  if (e.touches.length === 1) {
-    state.touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  }
-};
-
-const onTouchMove = (e) => {
-  if (e.touches.length === 1 && state.touchStart) {
-    e.preventDefault();
-    const lockX = activeLayout === "feed" || activeLayout === "grid";
-    if (!lockX) applyDragDelta(e.touches[0].clientX - state.touchStart.x, 0, true);
-    applyDragDelta(0, e.touches[0].clientY - state.touchStart.y, true);
-    state.cameraOffset.x = state.targetOffset.x;
-    state.cameraOffset.y = state.targetOffset.y;
+  if (editMode) {
+    toggleMediaHidden(mediaItem);
+    saveHiddenIds();
+    updateEditCounter();
     renderVisibleItems();
-    state.touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  } else {
+    openLightbox(target, mediaItem);
   }
 };
 
-const onTouchEnd = () => {
-  state.touchStart = null;
-};
-
-const onWheel = (e) => {
-  e.preventDefault();
-  if (state.lightboxOpen) return;
-  const lockX = activeLayout === "feed" || activeLayout === "grid";
-  if (!lockX) state.targetOffset.x += e.deltaX;
-  state.targetOffset.y += e.deltaY;
-  clampTargetOffset();
-  state.cameraOffset.x = state.targetOffset.x;
-  state.cameraOffset.y = state.targetOffset.y;
-  renderVisibleItems();
-};
+const onTouchStart = () => {};
+const onTouchMove = () => {};
+const onTouchEnd = () => {};
+const onWheel = () => {};
 
 const onWindowResize = () => {
   buildLayout();
-  clampAllOffsets();
   for (const [visKey, entry] of activeMap) {
     releaseElement(entry.poolEl);
     activeMap.delete(visKey);
@@ -781,15 +669,6 @@ const onWindowResize = () => {
 
 const animate = () => {
   requestAnimationFrame(animate);
-
-  const dx = state.targetOffset.x - state.cameraOffset.x;
-  const dy = state.targetOffset.y - state.cameraOffset.y;
-
-  if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
-    state.cameraOffset.x = state.targetOffset.x;
-    state.cameraOffset.y = state.targetOffset.y;
-    renderVisibleItems();
-  }
 };
 
 // --- Layout switcher ---
@@ -838,18 +717,12 @@ const applyLayout = (layout) => {
   grid.style.opacity = "0";
 
   setTimeout(() => {
-    state.cameraOffset.x = 0;
-    state.cameraOffset.y = 0;
-    state.targetOffset.x = 0;
-    state.targetOffset.y = 0;
-
     for (const [visKey, entry] of activeMap) {
       releaseElement(entry.poolEl);
       activeMap.delete(visKey);
     }
 
     buildLayout();
-    clampAllOffsets();
     renderVisibleItems();
 
     void grid.offsetHeight;
@@ -1133,7 +1006,6 @@ const init = async () => {
 
   document.body.classList.add(`layout-${activeLayout}`);
   buildLayout();
-  clampAllOffsets();
   createPool();
   renderVisibleItems();
   createProfileHeader();
@@ -1149,10 +1021,10 @@ const init = async () => {
   viewport.addEventListener("mousemove", onMouseMove);
   viewport.addEventListener("mouseup", onMouseUp);
   viewport.addEventListener("mouseleave", onMouseUp);
-  viewport.addEventListener("wheel", onWheel, { passive: false });
-  viewport.addEventListener("touchstart", onTouchStart);
-  viewport.addEventListener("touchmove", onTouchMove, { passive: false });
-  viewport.addEventListener("touchend", onTouchEnd);
+  viewport.addEventListener("wheel", onWheel, { passive: true });
+  viewport.addEventListener("touchstart", onTouchStart, { passive: true });
+  viewport.addEventListener("touchmove", onTouchMove, { passive: true });
+  viewport.addEventListener("touchend", onTouchEnd, { passive: true });
   window.addEventListener("resize", onWindowResize);
 
   lightboxClose.addEventListener("click", (e) => {
