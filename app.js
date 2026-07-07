@@ -831,12 +831,17 @@ const createInfoToggle = () => {
 const positionInfoPopover = (buttonEl) => {
   if (!infoPopoverEl || !buttonEl) return;
   const rect = buttonEl.getBoundingClientRect();
-  const { width: popoverWidth, height: popoverHeight } = infoPopoverEl.getBoundingClientRect();
-  const left = rect.left + rect.width / 2 - popoverWidth / 2;
-  let top = rect.top - popoverHeight - 10;
-  let adjustedLeft = Math.min(Math.max(12, left), window.innerWidth - popoverWidth - 12);
-  if (top < 12) top = rect.bottom + 10;
-  infoPopoverEl.style.left = `${adjustedLeft}px`;
+  const { height: popoverHeight } = infoPopoverEl.getBoundingClientRect();
+  let top = rect.bottom + 10;
+  let placement = "below";
+
+  if (top + popoverHeight > window.innerHeight - 24) {
+    top = rect.top - popoverHeight - 10;
+    placement = "above";
+  }
+
+  infoPopoverEl.dataset.placement = placement;
+  infoPopoverEl.style.left = "50%";
   infoPopoverEl.style.top = `${top}px`;
 };
 
@@ -861,17 +866,28 @@ const renderInfoPopover = () => {
   const twitterUrl = PROFILE?.url || `https://x.com/${handle}`;
   const sourceCodeUrl = PROFILE_DETAILS.sourceCodeUrl || "";
 
+  const twitterSvg = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53A4.48 4.48 0 0 0 16.62 3c-2.49 0-4.5 2-4.5 4.5 0 .35.04.7.11 1.04A12.8 12.8 0 0 1 3 4.79a4.5 4.5 0 0 0 1.39 6A4.41 4.41 0 0 1 2.8 10v.06c0 2.17 1.54 3.98 3.6 4.38a4.52 4.52 0 0 1-2.03.08 4.51 4.51 0 0 0 4.2 3.13A9.05 9.05 0 0 1 2 19.54 12.78 12.78 0 0 0 8.29 21c7.55 0 11.68-6.26 11.68-11.68 0-.18 0-.35-.01-.53A8.18 8.18 0 0 0 23 3z"/>
+    </svg>
+  `;
+
   infoPopoverEl.innerHTML = `
     <div class="info-popover-header">
-      <img class="info-avatar" src="${avatar}" alt="${displayName} avatar">
-      <div>
-        <div class="info-name">${displayName}</div>
-        <a class="info-handle" href="${twitterUrl}" target="_blank" rel="noopener">@${handle}</a>
+      <div class="info-left">
+        <img class="info-avatar" src="${avatar}" alt="${displayName} avatar">
+        <div class="info-header-body">
+          <div class="info-name">${displayName}</div>
+          <a class="info-handle" href="${twitterUrl}" target="_blank" rel="noopener">@${handle}</a>
+        </div>
       </div>
+      <a class="info-twitter-link" href="${twitterUrl}" target="_blank" rel="noopener" aria-label="View on X">${twitterSvg}</a>
     </div>
-    <div class="info-bio">${bio}</div>
+    <div class="info-divider"></div>
+    <p class="info-bio">${bio}</p>
+    <div class="info-divider"></div>
     <div class="info-actions">
-      ${websiteUrl ? `<a class="info-link" href="${websiteUrl}" target="_blank" rel="noopener">${PROFILE_DETAILS.websiteLabel || "Website"}</a>` : ""}
+      ${websiteUrl ? `<a class="info-link" href="${websiteUrl}" target="_blank" rel="noopener">${PROFILE_DETAILS.websiteLabel || "Personal website"}</a>` : ""}
       ${sourceCodeUrl ? `<a class="info-link" href="${sourceCodeUrl}" target="_blank" rel="noopener">Source code</a>` : ""}
     </div>
   `;
@@ -926,14 +942,27 @@ const onDocumentKeyDownCloseInfo = (event) => {
 const createProfileHeader = () => {
   if (!PROFILE) return;
 
-  const header = document.createElement("a");
+  const header = document.createElement("button");
   header.id = "profile-header";
   header.className = "profile-header";
-  header.href = PROFILE.url;
-  header.target = "_blank";
-  header.rel = "noopener";
+  header.type = "button";
+  header.title = "Profile info";
 
-  header.innerHTML = `<span class="profile-handle">@${CONFIG?.handle || PROFILE.handle || PROFILE.name}</span>`;
+  const handle = CONFIG?.handle || PROFILE.handle || PROFILE.name;
+  const avatar = PROFILE?.avatar || "";
+
+  header.innerHTML = `
+    <img class="profile-avatar" src="${avatar}" alt="${handle} avatar">
+    <span class="profile-handle">@${handle}</span>
+    <span class="profile-info-icon" aria-hidden="true">
+      <img src="assets/info.svg" alt="Info" width="16" height="16">
+    </span>
+  `;
+
+  header.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleInfoPopover(header);
+  });
 
   document.body.appendChild(header);
 };
@@ -958,11 +987,6 @@ const createToolbar = () => {
   rightGroup.className = "toolbar-group";
   rightGroup.appendChild(createThemeToggle());
   toolbar.appendChild(rightGroup);
-
-  const infoButtonGroup = document.createElement("div");
-  infoButtonGroup.className = "toolbar-group";
-  infoButtonGroup.appendChild(createInfoToggle());
-  toolbar.appendChild(infoButtonGroup);
 
   document.body.appendChild(toolbar);
 };
