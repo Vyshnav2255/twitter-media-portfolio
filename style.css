@@ -164,7 +164,7 @@ body.layout-feed #viewport.grabbing {
   z-index: 50;
   text-decoration: none;
   color: var(--control-text);
-  padding: 0 12px;
+  padding: 0 6px;
   min-height: 38px;
   background: var(--control-bg);
   border: none;
@@ -216,8 +216,8 @@ body.layout-feed #viewport.grabbing {
 }
 
 .profile-info-icon img {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .info-popover-header {
