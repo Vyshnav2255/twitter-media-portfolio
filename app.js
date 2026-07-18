@@ -451,10 +451,14 @@ const openLightbox = (el, mediaItem) => {
   state.lightboxItem = { element: el, mediaItem };
 
   const rect = el.getBoundingClientRect();
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const maxW = vw * 0.7;
-  const maxH = vh * 0.7;
+  const isMobile = window.matchMedia("(max-width: 768px)").matches;
+  const visibleViewport = isMobile ? window.visualViewport : null;
+  const vw = visibleViewport?.width ?? window.innerWidth;
+  const vh = visibleViewport?.height ?? window.innerHeight;
+  const viewportX = visibleViewport?.offsetLeft ?? 0;
+  const viewportY = visibleViewport?.offsetTop ?? 0;
+  const maxW = isMobile ? vw : vw * 0.7;
+  const maxH = isMobile ? vh : vh * 0.7;
 
   const aspectRatio = rect.width / rect.height;
   let targetW, targetH;
@@ -470,8 +474,8 @@ const openLightbox = (el, mediaItem) => {
   const startY = rect.top;
   const startW = rect.width;
   const startH = rect.height;
-  const endX = (vw - targetW) / 2;
-  const endY = (vh - targetH) / 2;
+  const endX = viewportX + (vw - targetW) / 2;
+  const endY = viewportY + (vh - targetH) / 2;
 
   el.style.visibility = "hidden";
 
@@ -496,7 +500,7 @@ const openLightbox = (el, mediaItem) => {
       video.loop = true;
       video.setAttribute("loop", "");
       video.preload = "metadata";
-      video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px;opacity:1;pointer-events:auto;z-index:999;";
+      video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:0;opacity:1;pointer-events:auto;z-index:999;";
       video.addEventListener("loadedmetadata", () => {
         video.currentTime = 0;
       });
@@ -513,7 +517,7 @@ const openLightbox = (el, mediaItem) => {
       const hiRes = new Image();
       hiRes.src = twitterImageUrl(image.url, "4096x4096");
       hiRes.alt = "";
-      hiRes.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px;opacity:0;transition:opacity 0.3s ease;";
+      hiRes.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:0;opacity:0;transition:opacity 0.3s ease;";
       hiRes.onload = () => { hiRes.style.opacity = "1"; };
       lightboxClone.appendChild(hiRes);
     }
