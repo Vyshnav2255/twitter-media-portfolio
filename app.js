@@ -824,7 +824,7 @@ const createInfoToggle = () => {
   btn.id = "info-toggle";
   btn.className = "toolbar-btn";
   btn.title = "Info";
-  btn.innerHTML = `<img src="assets/info.svg" alt="Info" width="18" height="18">`;
+  btn.innerHTML = `<img src="assets/arrow-down.svg" alt="Info" width="18" height="18">`;
   btn.addEventListener("click", (event) => {
     event.stopPropagation();
     toggleInfoPopover(btn);
@@ -959,7 +959,7 @@ const createProfileHeader = () => {
     <img class="profile-avatar" src="${avatar}" alt="${handle} avatar">
     <span class="profile-handle">@${handle}</span>
     <span class="profile-info-icon" aria-hidden="true">
-      <img src="assets/info.svg" alt="Info" width="16" height="16">
+      <img src="assets/arrow-down.svg" alt="Info" width="16" height="16">
     </span>
   `;
 
