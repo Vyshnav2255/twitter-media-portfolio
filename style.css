@@ -345,7 +345,7 @@ body.lightbox-open .toolbar {
   width: min(280px, calc(100vw - 40px));
   max-width: calc(100vw - 40px);
   padding: 16px;
-  border-radius: 28px;
+  border-radius: 12px;
   background: #ffffff;
   color: #111827;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
@@ -433,7 +433,7 @@ body.lightbox-open .toolbar {
   align-items: center;
   justify-content: center;
   padding: 14px 16px;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #111827;
   color: #ffffff;
   text-decoration: none;
@@ -636,6 +636,7 @@ body.lightbox-open .toolbar {
   left: 0;
   z-index: 101;
   overflow: hidden;
+  border-radius: 0;
   will-change: transform, width, height;
 }
 
