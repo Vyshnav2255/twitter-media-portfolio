@@ -156,9 +156,9 @@ const getResponsiveGridMetrics = (vw) => {
   const topPadding = 24;
   let cols = GRID_CONFIG.COLS;
 
-  if (vw <= 1440) cols = Math.min(cols, 4);
-  if (vw <= 1040) cols = Math.min(cols, 3);
-  if (vw <= 820) cols = 3;
+  if (vw <= 1840) cols = Math.min(cols, 4);
+  if (vw <= 1440) cols = Math.min(cols, 3);
+  if (vw <= 840) cols = 2;
   if (vw <= 620) cols = Math.min(cols, 2);
   if (vw <= 420) cols = 1;
 
