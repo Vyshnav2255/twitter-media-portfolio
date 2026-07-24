@@ -968,10 +968,10 @@ const createProfileHeader = () => {
     toggleInfoPopover(header);
   });
 
-  document.body.appendChild(header);
+  return header;
 };
 
-// --- Toolbar ---
+// --- Top navigation ---
 
 const createToolbar = () => {
   const toolbar = document.createElement("div");
@@ -992,7 +992,26 @@ const createToolbar = () => {
   rightGroup.appendChild(createThemeToggle());
   toolbar.appendChild(rightGroup);
 
-  document.body.appendChild(toolbar);
+  return toolbar;
+};
+
+const createTopNav = () => {
+  const nav = document.createElement("nav");
+  nav.id = "top-nav";
+  nav.className = "top-nav";
+  nav.setAttribute("aria-label", "Portfolio controls");
+
+  const profileHeader = createProfileHeader();
+  if (profileHeader) {
+    nav.appendChild(profileHeader);
+    const divider = document.createElement("span");
+    divider.className = "nav-divider";
+    divider.setAttribute("aria-hidden", "true");
+    nav.appendChild(divider);
+  }
+
+  nav.appendChild(createToolbar());
+  document.body.appendChild(nav);
 };
 
 // --- Init ---
@@ -1036,8 +1055,7 @@ const init = async () => {
   buildLayout();
   createPool();
   renderVisibleItems();
-  createProfileHeader();
-  createToolbar();
+  createTopNav();
 
   // Pre-warm Motion
   const warmup = document.createElement("div");
