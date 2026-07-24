@@ -154,19 +154,34 @@ body.layout-feed #viewport.grabbing {
   height: 100%;
 }
 
-/* --- Profile Header --- */
+/* --- Top navigation --- */
 
-.profile-header {
+.top-nav {
   position: fixed;
   top: 24px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 48px;
+  max-width: calc(100vw - 32px);
+  padding: 4px;
+  box-sizing: border-box;
+  background: var(--control-bg);
+  border-radius: 100px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22),
+              0 2px 6px rgba(0, 0, 0, 0.12);
+  transition: opacity 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.profile-header {
   text-decoration: none;
   color: var(--control-text);
   padding: 0 6px;
-  min-height: 38px;
-  background: var(--control-bg);
+  min-height: 40px;
+  background: transparent;
   border: none;
   border-radius: 100px;
   transition: background 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94),
@@ -175,7 +190,7 @@ body.layout-feed #viewport.grabbing {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  max-width: 90vw;
+  max-width: min(48vw, 240px);
   user-select: none;
   cursor: pointer;
 }
@@ -186,7 +201,8 @@ body.layout-feed #viewport.grabbing {
 }
 
 @media (hover: hover) {
-  .profile-header:hover {
+  .profile-header:hover,
+  .toolbar-btn:hover {
     background: var(--control-hover);
   }
 }
@@ -268,20 +284,13 @@ body.layout-feed #viewport.grabbing {
 /* --- Toolbar --- */
 
 .toolbar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 50;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: opacity 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  gap: 2px;
 }
 
 /* Fade controls when lightbox is open */
-body.lightbox-open .profile-header,
-body.lightbox-open .toolbar {
+body.lightbox-open .top-nav {
   opacity: 0;
   pointer-events: none;
 }
@@ -289,19 +298,19 @@ body.lightbox-open .toolbar {
 .toolbar-group {
   display: flex;
   gap: 2px;
-  padding: 4px;
-  background: var(--control-bg);
+  padding: 0;
+  background: transparent;
   border: none;
   border-radius: 100px;
   align-items: center;
-  height: 35px;
+  height: 40px;
   box-sizing: border-box;
   user-select: none;
 }
 
 .toolbar-btn {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -313,6 +322,20 @@ body.lightbox-open .toolbar {
   transition: background 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94),
               color 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   padding: 0;
+}
+
+.nav-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--control-text-muted);
+  opacity: 0.45;
+}
+
+@media (max-width: 620px) {
+  #layout-switcher {
+    display: none;
+  }
 }
 
 .toolbar-btn.active {
