@@ -32,6 +32,8 @@ const state = {
   lightboxOpen: false,
   lightboxItem: null,
   lightboxAnimating: false,
+  lightboxNavigationQueue: 0,
+  lightboxSwipeStart: null,
 };
 
 const viewport = document.getElementById("viewport");
@@ -439,6 +441,87 @@ const renderVisibleItems = () => {
 
 const DRAG_THRESHOLD = 5;
 let lightboxClone = null;
+const lightboxPreloadCache = new Map();
+
+const preloadLightboxMedia = (mediaItem) => {
+  if (!mediaItem || lightboxPreloadCache.has(mediaItem.id)) return;
+
+  const { image } = mediaItem;
+  const resource = image.type === "video" && image.videoUrl
+    ? document.createElement("video")
+    : new Image();
+
+  if (resource instanceof HTMLVideoElement) {
+    resource.preload = "metadata";
+    resource.src = `/api/video-proxy?src=${encodeURIComponent(image.videoUrl)}`;
+    resource.load();
+  } else {
+    resource.src = twitterImageUrl(image.url, "4096x4096");
+  }
+
+  lightboxPreloadCache.set(mediaItem.id, resource);
+  if (lightboxPreloadCache.size > 8) {
+    lightboxPreloadCache.delete(lightboxPreloadCache.keys().next().value);
+  }
+};
+
+const preloadLightboxNeighbors = (mediaItem) => {
+  const currentIndex = VISIBLE_MEDIA_ITEMS.findIndex((item) => item.id === mediaItem.id);
+  if (currentIndex === -1) return;
+
+  for (const offset of [-2, -1, 1, 2]) {
+    const index = (currentIndex + offset + VISIBLE_MEDIA_ITEMS.length) % VISIBLE_MEDIA_ITEMS.length;
+    preloadLightboxMedia(VISIBLE_MEDIA_ITEMS[index]);
+  }
+};
+
+const createLightboxMedia = (image) => {
+  if (image.type === "video" && image.videoUrl) {
+    const video = document.createElement("video");
+    video.src = `/api/video-proxy?src=${encodeURIComponent(image.videoUrl)}`;
+    video.poster = twitterImageUrl(image.url, "medium");
+    video.controls = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.muted = true;
+    video.autoplay = true;
+    video.loop = true;
+    video.setAttribute("loop", "");
+    video.preload = "metadata";
+    video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:0;opacity:1;pointer-events:auto;z-index:999;";
+    video.addEventListener("loadedmetadata", () => { video.currentTime = 0; });
+    video.addEventListener("canplay", () => {
+      const promise = video.play();
+      if (promise && promise.catch) promise.catch(() => {});
+    });
+    video.addEventListener("error", (event) => console.error("Video playback error", event));
+    return video;
+  }
+
+  const hiRes = new Image();
+  hiRes.src = twitterImageUrl(image.url, "4096x4096");
+  hiRes.alt = "";
+  hiRes.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:0;opacity:0;transition:opacity 0.3s ease;";
+  hiRes.onload = () => { hiRes.style.opacity = "1"; };
+  return hiRes;
+};
+
+const getLightboxBounds = (image) => {
+  const isMobile = window.matchMedia("(max-width: 768px)").matches;
+  const visibleViewport = isMobile ? window.visualViewport : null;
+  const vw = visibleViewport?.width ?? window.innerWidth;
+  const vh = visibleViewport?.height ?? window.innerHeight;
+  const viewportX = visibleViewport?.offsetLeft ?? 0;
+  const viewportY = visibleViewport?.offsetTop ?? 0;
+  const maxW = isMobile ? vw : vw * 0.7;
+  const maxH = isMobile ? vh : vh * 0.7;
+  const aspectRatio = image.width / image.height;
+  const [width, height] = maxW / maxH > aspectRatio
+    ? [maxH * aspectRatio, maxH]
+    : [maxW, maxW / aspectRatio];
+
+  return { x: viewportX + (vw - width) / 2, y: viewportY + (vh - height) / 2, width, height };
+};
 
 const openLightbox = (el, mediaItem) => {
   if (state.lightboxOpen || state.lightboxAnimating) return;
@@ -477,52 +560,18 @@ const openLightbox = (el, mediaItem) => {
   const endX = viewportX + (vw - targetW) / 2;
   const endY = viewportY + (vh - targetH) / 2;
 
-  el.style.visibility = "hidden";
-
   lightboxClone = document.createElement("div");
   lightboxClone.className = "grid-item lightbox-active";
   lightboxClone.style.width = `${startW}px`;
   lightboxClone.style.height = `${startH}px`;
   lightboxClone.style.display = "";
   lightboxClone.style.visibility = "visible";
+  lightboxClone.style.transformOrigin = "center center";
   lightboxClone.style.transform = `translate3d(${startX}px, ${startY}px, 0)`;
 
-  if (image) {
-    if (image.type === "video" && image.videoUrl) {
-      const video = document.createElement("video");
-      video.src = `/api/video-proxy?src=${encodeURIComponent(image.videoUrl)}`;
-      video.poster = twitterImageUrl(image.url, "medium");
-      video.controls = true;
-      video.setAttribute("playsinline", "");
-      video.setAttribute("webkit-playsinline", "");
-      video.muted = true;
-      video.autoplay = true;
-      video.loop = true;
-      video.setAttribute("loop", "");
-      video.preload = "metadata";
-      video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:0;opacity:1;pointer-events:auto;z-index:999;";
-      video.addEventListener("loadedmetadata", () => {
-        video.currentTime = 0;
-      });
-      video.addEventListener("canplay", () => {
-        const promise = video.play();
-        if (promise && promise.catch) promise.catch(() => {});
-      });
-      video.addEventListener("error", (event) => {
-        console.error("Video playback error", event);
-      });
-      lightboxClone.appendChild(video);
-      lightboxClone.classList.add("lightbox-video");
-    } else {
-      const hiRes = new Image();
-      hiRes.src = twitterImageUrl(image.url, "4096x4096");
-      hiRes.alt = "";
-      hiRes.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:0;opacity:0;transition:opacity 0.3s ease;";
-      hiRes.onload = () => { hiRes.style.opacity = "1"; };
-      lightboxClone.appendChild(hiRes);
-    }
-  }
+  if (image) lightboxClone.appendChild(createLightboxMedia(image));
   document.body.appendChild(lightboxClone);
+  preloadLightboxNeighbors(mediaItem);
 
   overlay.classList.add("active");
   document.body.classList.add("lightbox-open");
@@ -576,10 +625,11 @@ const openLightbox = (el, mediaItem) => {
     { type: "spring", duration: springDuration, bounce: 0.15 }
   ).then(() => {
     state.lightboxAnimating = false;
+    flushLightboxNavigationQueue();
   });
 };
 
-const closeLightbox = () => {
+const closeLightbox = (onClosed) => {
   if (!state.lightboxOpen || state.lightboxAnimating || !state.lightboxItem) return;
 
   state.lightboxAnimating = true;
@@ -613,11 +663,114 @@ const closeLightbox = () => {
   ).then(() => {
     lightboxClone.remove();
     lightboxClone = null;
-    el.style.visibility = "";
     state.lightboxOpen = false;
     state.lightboxItem = null;
     state.lightboxAnimating = false;
+    onClosed?.();
   });
+};
+
+const getLightboxElement = (mediaItem) => {
+  const layoutItem = layoutItems.find((item) => item.mediaItem.id === mediaItem.id);
+  return layoutItem ? activeMap.get(layoutItem.key)?.poolEl : null;
+};
+
+const flushLightboxNavigationQueue = () => {
+  if (!state.lightboxOpen || state.lightboxAnimating || !state.lightboxNavigationQueue) return;
+
+  const direction = Math.sign(state.lightboxNavigationQueue);
+  state.lightboxNavigationQueue -= direction;
+  navigateLightbox(direction);
+};
+
+const navigateLightbox = (direction) => {
+  if (!state.lightboxOpen || !state.lightboxItem) return;
+  if (state.lightboxAnimating) {
+    state.lightboxNavigationQueue += direction;
+    return;
+  }
+
+  const currentIndex = VISIBLE_MEDIA_ITEMS.findIndex(
+    (item) => item.id === state.lightboxItem.mediaItem.id
+  );
+  if (currentIndex === -1 || VISIBLE_MEDIA_ITEMS.length < 2) return;
+
+  const nextIndex = (currentIndex + direction + VISIBLE_MEDIA_ITEMS.length) % VISIBLE_MEDIA_ITEMS.length;
+  const nextMediaItem = VISIBLE_MEDIA_ITEMS[nextIndex];
+  const nextElement = getLightboxElement(nextMediaItem);
+  if (!nextElement) return;
+
+  state.lightboxAnimating = true;
+
+  const nextBounds = getLightboxBounds(nextMediaItem.image);
+  const previousMedia = lightboxClone.firstElementChild;
+  const nextMedia = createLightboxMedia(nextMediaItem.image);
+  nextMedia.style.opacity = "0";
+  nextMedia.style.transform = "translate3d(0, 0, 0)";
+  nextMedia.style.transition = "opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1)";
+  lightboxClone.appendChild(nextMedia);
+
+  if (previousMedia) {
+    previousMedia.style.opacity = "0";
+    previousMedia.style.transform = "translate3d(0, 0, 0)";
+    previousMedia.style.transition = "opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1)";
+    setTimeout(() => previousMedia.remove(), 320);
+  }
+  requestAnimationFrame(() => {
+    nextMedia.style.opacity = "1";
+  });
+
+  const post = nextMediaItem.post;
+  const caption = post.text.trim().replace(/https?:\/\/t\.co\/\w+/g, "").trim();
+  lightboxTitle.textContent = caption.length > 120 ? `${caption.substring(0, 120)}…` : caption;
+  lightboxTitle.style.display = caption ? "" : "none";
+  lightboxLink.href = post.url;
+  lightboxLink.textContent = nextMediaItem.image.type === "video" ? "Watch video on Twitter" : "View on Twitter";
+  document.getElementById("lightbox-info").style.top = `${nextBounds.y + nextBounds.height + 16}px`;
+
+  state.lightboxItem = {
+    element: nextElement,
+    mediaItem: nextMediaItem,
+    _endX: nextBounds.x,
+    _endY: nextBounds.y,
+    _endW: nextBounds.width,
+    _endH: nextBounds.height,
+  };
+  preloadLightboxNeighbors(nextMediaItem);
+
+  Motion.animate(
+    lightboxClone,
+    {
+      width: `${nextBounds.width}px`,
+      height: `${nextBounds.height}px`,
+      transform: `translate3d(${nextBounds.x}px, ${nextBounds.y}px, 0)`,
+    },
+    { type: "spring", duration: 0.48, bounce: 0.06 }
+  ).then(() => {
+    state.lightboxAnimating = false;
+    flushLightboxNavigationQueue();
+  });
+};
+
+const onLightboxTouchStart = (event) => {
+  if (!state.lightboxOpen || event.touches.length !== 1) return;
+
+  const touch = event.touches[0];
+  state.lightboxSwipeStart = { x: touch.clientX, y: touch.clientY };
+};
+
+const onLightboxTouchEnd = (event) => {
+  if (!state.lightboxSwipeStart || !event.changedTouches.length) return;
+
+  const touch = event.changedTouches[0];
+  const deltaX = touch.clientX - state.lightboxSwipeStart.x;
+  const deltaY = touch.clientY - state.lightboxSwipeStart.y;
+  state.lightboxSwipeStart = null;
+
+  const isHorizontalSwipe = Math.abs(deltaX) > 48 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25;
+  if (!isHorizontalSwipe) return;
+
+  navigateLightbox(deltaX < 0 ? 1 : -1);
 };
 
 // --- Input Handlers ---
@@ -1072,6 +1225,8 @@ const init = async () => {
   viewport.addEventListener("touchmove", onTouchMove, { passive: true });
   viewport.addEventListener("touchend", onTouchEnd, { passive: true });
   window.addEventListener("resize", onWindowResize);
+  window.addEventListener("touchstart", onLightboxTouchStart, { passive: true });
+  window.addEventListener("touchend", onLightboxTouchEnd, { passive: true });
 
   lightboxClose.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -1081,7 +1236,14 @@ const init = async () => {
     if (e.target === overlay) closeLightbox();
   });
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && state.lightboxOpen) closeLightbox();
+    if (!state.lightboxOpen) return;
+
+    if (e.key === "Escape") {
+      closeLightbox();
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      navigateLightbox(e.key === "ArrowLeft" ? -1 : 1);
+    }
   });
 
   animate();
