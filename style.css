@@ -608,6 +608,41 @@ body.lightbox-open .top-nav {
   transition-delay: 0.2s;
 }
 
+.lightbox-nav-hint {
+  position: absolute;
+  left: 50%;
+  z-index: 102;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  white-space: nowrap;
+}
+
+.lightbox-overlay.active .lightbox-nav-hint {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  transition-delay: 0.2s;
+}
+
+.lightbox-nav-hint-mobile {
+  display: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .lightbox-nav-hint-desktop {
+    display: none;
+  }
+
+  .lightbox-nav-hint-mobile {
+    display: inline;
+  }
+}
+
 @media (hover: hover) {
   .lightbox-close:hover {
     background: rgba(255, 255, 255, 0.2);

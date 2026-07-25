@@ -42,6 +42,7 @@ const overlay = document.getElementById("lightbox-overlay");
 const lightboxClose = document.getElementById("lightbox-close");
 const lightboxTitle = document.getElementById("lightbox-title");
 const lightboxLink = document.getElementById("lightbox-link");
+const lightboxNavHint = document.getElementById("lightbox-nav-hint");
 
 const canShowEditControls = () => {
   const host = window.location.hostname;
@@ -594,6 +595,7 @@ const openLightbox = (el, mediaItem) => {
 
   const lightboxInfo = document.getElementById("lightbox-info");
   lightboxInfo.style.top = `${endY + targetH + 16}px`;
+  lightboxNavHint.style.top = `${Math.max(16, endY - 32)}px`;
 
   const videoElement = lightboxClone.querySelector("video");
   if (videoElement) {
@@ -727,6 +729,7 @@ const navigateLightbox = (direction) => {
   lightboxLink.href = post.url;
   lightboxLink.textContent = nextMediaItem.image.type === "video" ? "Watch video on Twitter" : "View on Twitter";
   document.getElementById("lightbox-info").style.top = `${nextBounds.y + nextBounds.height + 16}px`;
+  lightboxNavHint.style.top = `${Math.max(16, nextBounds.y - 32)}px`;
 
   state.lightboxItem = {
     element: nextElement,
