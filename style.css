@@ -82,6 +82,24 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
   transition: filter var(--transition-fast);
 }
 
+.grid-item-video-preview {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.hover-preview-warmer {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .grid-item-hidden-overlay,
 .grid-item-video-badge,
 .profile-info-icon,

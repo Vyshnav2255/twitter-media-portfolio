@@ -309,6 +309,80 @@ const pool = [];
 const freePool = [];
 const activeMap = new Map();
 const elToMediaItem = new WeakMap();
+const hoverPreviewWarmers = new Map();
+const MAX_HOVER_PREVIEW_WARMERS = 12;
+
+const createHoverPreviewVideo = (mediaItem) => {
+  const video = document.createElement("video");
+  video.src = `/api/video-proxy?src=${encodeURIComponent(mediaItem.image.videoUrl)}`;
+  video.poster = twitterImageUrl(mediaItem.image.url, "medium");
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  return video;
+};
+
+const warmHoverPreview = (mediaItem) => {
+  if (
+    activeLayout !== "grid" ||
+    mediaItem.image.type !== "video" ||
+    !mediaItem.image.videoUrl ||
+    hoverPreviewWarmers.has(mediaItem.id)
+  ) return;
+
+  if (hoverPreviewWarmers.size >= MAX_HOVER_PREVIEW_WARMERS) {
+    const [oldestId, oldestVideo] = hoverPreviewWarmers.entries().next().value;
+    oldestVideo.remove();
+    oldestVideo.removeAttribute("src");
+    oldestVideo.load();
+    hoverPreviewWarmers.delete(oldestId);
+  }
+
+  const video = createHoverPreviewVideo(mediaItem);
+  video.className = "hover-preview-warmer";
+  video.setAttribute("aria-hidden", "true");
+  document.body.appendChild(video);
+  hoverPreviewWarmers.set(mediaItem.id, video);
+};
+
+const stopHoverPreview = (el) => {
+  const preview = el.querySelector(".grid-item-video-preview");
+  if (preview) {
+    preview.pause();
+    preview.removeAttribute("src");
+    preview.load();
+    preview.remove();
+  }
+
+  el.classList.remove("is-video-previewing");
+  const badge = el.querySelector(".grid-item-video-badge");
+  const mediaItem = elToMediaItem.get(el);
+  if (badge) badge.style.display = mediaItem?.image.type === "video" ? "" : "none";
+};
+
+const startHoverPreview = (el) => {
+  const mediaItem = elToMediaItem.get(el);
+  if (
+    activeLayout !== "grid" ||
+    editMode ||
+    state.lightboxOpen ||
+    mediaItem?.image.type !== "video" ||
+    !mediaItem.image.videoUrl ||
+    el.querySelector(".grid-item-video-preview")
+  ) return;
+
+  const video = hoverPreviewWarmers.get(mediaItem.id) || createHoverPreviewVideo(mediaItem);
+  hoverPreviewWarmers.delete(mediaItem.id);
+  video.className = "grid-item-video-preview";
+  video.setAttribute("aria-label", "Video preview");
+
+  el.appendChild(video);
+  video.play().catch(() => {});
+  el.classList.add("is-video-previewing");
+  const badge = el.querySelector(".grid-item-video-badge");
+  if (badge) badge.style.display = "none";
+};
 
 const createPool = () => {
   grid.innerHTML = "";
@@ -322,6 +396,8 @@ const createPool = () => {
     el.className = "grid-item";
     el.style.display = "none";
     el.innerHTML = `<img src="" alt="" loading="lazy" decoding="async"><div class="grid-item-video-badge" style="display:none"><svg class="play-pill-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21.25 12C21.25 17.1086 17.1086 21.25 12 21.25C6.89137 21.25 2.75 17.1086 2.75 12C2.75 6.89137 6.89137 2.75 12 2.75C17.1086 2.75 21.25 6.89137 21.25 12Z" fill="#1E1E1E"/><path d="M10 14.804V9.19617C10 8.79446 10.4498 8.55675 10.7817 8.78305L14.8941 11.587C15.1852 11.7855 15.1852 12.2147 14.8941 12.4132L10.7817 15.2171C10.4498 15.4434 10 15.2057 10 14.804Z" fill="white"/></svg></div><div class="grid-item-hidden-overlay"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg></div>`;
+    el.addEventListener("mouseenter", () => startHoverPreview(el));
+    el.addEventListener("mouseleave", () => stopHoverPreview(el));
     grid.appendChild(el);
     pool.push(el);
     freePool.push(el);
@@ -336,6 +412,7 @@ const acquireElement = () => {
 };
 
 const releaseElement = (el) => {
+  stopHoverPreview(el);
   el.style.display = "none";
   el.style.visibility = "";
   el.classList.remove("hidden-post");
@@ -420,6 +497,12 @@ const renderVisibleItems = () => {
       }
 
       elToMediaItem.set(el, item.mediaItem);
+      const isNearViewport =
+        sy + item.h >= -240 &&
+        sy <= vh + 240 &&
+        sx + item.w >= -240 &&
+        sx <= vw + 240;
+      if (isNearViewport) warmHoverPreview(item.mediaItem);
       activeMap.set(visKey, {
         poolEl: el,
         layoutItem: item,
@@ -527,6 +610,7 @@ const getLightboxBounds = (image) => {
 const openLightbox = (el, mediaItem) => {
   if (state.lightboxOpen || state.lightboxAnimating) return;
 
+  stopHoverPreview(el);
   const post = mediaItem?.post;
   const image = mediaItem?.image;
 
