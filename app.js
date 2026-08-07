@@ -15,9 +15,8 @@ const GRID_CONFIG = {
   COLS: 5,
   GAP: 24,
   MIN_ITEM_WIDTH: 150,
-  easingFactor: 1,
-  POOL_SIZE: 500,
-  BUFFER: 600,
+  POOL_SIZE: 120,
+  BUFFER: 800,
 };
 
 const state = {
@@ -86,6 +85,8 @@ const toggleTheme = () => {
 
 // --- Layout data ---
 let layoutItems = [];
+let layoutItemByMediaId = new Map();
+let visibleMediaIndexById = new Map();
 let colWidth = 0;
 let totalWidth = 0;
 let maxColHeight = 0;
@@ -185,9 +186,15 @@ const getResponsiveGridMetrics = (vw) => {
 
 const buildLayout = () => {
   VISIBLE_MEDIA_ITEMS = getDisplayMediaItems();
+  visibleMediaIndexById = new Map(
+    VISIBLE_MEDIA_ITEMS.map((item, index) => [item.id, index])
+  );
   if (activeLayout === "feed") buildFeedLayout();
   else if (activeLayout === "grid") buildGridLayout();
   else buildMasonryLayout();
+  layoutItemByMediaId = new Map(
+    layoutItems.map((item) => [item.mediaItem.id, item])
+  );
 };
 
 const buildMasonryLayout = () => {
@@ -390,7 +397,8 @@ const createPool = () => {
   freePool.length = 0;
   activeMap.clear();
 
-  const poolSize = Math.max(GRID_CONFIG.POOL_SIZE, VISIBLE_MEDIA_ITEMS.length + 200);
+  // Keep DOM work bounded even when the portfolio contains thousands of media items.
+  const poolSize = GRID_CONFIG.POOL_SIZE;
   for (let i = 0; i < poolSize; i++) {
     const el = document.createElement("div");
     el.className = "grid-item";
@@ -434,6 +442,9 @@ const twitterImageUrl = (url, size = "small") => {
 const renderVisibleItems = () => {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
+  const scrollTop = window.scrollY;
+  const minVisibleY = Math.max(0, scrollTop - GRID_CONFIG.BUFFER);
+  const maxVisibleY = scrollTop + vh + GRID_CONFIG.BUFFER;
 
   const lightboxEl = state.lightboxItem?.element || null;
 
@@ -451,6 +462,10 @@ const renderVisibleItems = () => {
 
   for (let i = 0; i < layoutItems.length; i++) {
     const item = layoutItems[i];
+
+    // Items outside the buffered viewport do not need a DOM node. Layout is
+    // still retained in memory for accurate page height and lightbox navigation.
+    if (item.y + item.h < minVisibleY || item.y > maxVisibleY) continue;
 
     const worldX = item.x + centerOffsetX;
     const worldY = item.y;
@@ -498,8 +513,8 @@ const renderVisibleItems = () => {
 
       elToMediaItem.set(el, item.mediaItem);
       const isNearViewport =
-        sy + item.h >= -240 &&
-        sy <= vh + 240 &&
+        sy + item.h >= scrollTop - 240 &&
+        sy <= scrollTop + vh + 240 &&
         sx + item.w >= -240 &&
         sx <= vw + 240;
       if (isNearViewport) warmHoverPreview(item.mediaItem);
@@ -545,13 +560,20 @@ const preloadLightboxMedia = (mediaItem) => {
 
   lightboxPreloadCache.set(mediaItem.id, resource);
   if (lightboxPreloadCache.size > 8) {
-    lightboxPreloadCache.delete(lightboxPreloadCache.keys().next().value);
+    const oldestId = lightboxPreloadCache.keys().next().value;
+    const oldestResource = lightboxPreloadCache.get(oldestId);
+    if (oldestResource instanceof HTMLVideoElement) {
+      oldestResource.pause();
+      oldestResource.removeAttribute("src");
+      oldestResource.load();
+    }
+    lightboxPreloadCache.delete(oldestId);
   }
 };
 
 const preloadLightboxNeighbors = (mediaItem) => {
-  const currentIndex = VISIBLE_MEDIA_ITEMS.findIndex((item) => item.id === mediaItem.id);
-  if (currentIndex === -1) return;
+  const currentIndex = visibleMediaIndexById.get(mediaItem.id);
+  if (currentIndex === undefined) return;
 
   for (const offset of [-2, -1, 1, 2]) {
     const index = (currentIndex + offset + VISIBLE_MEDIA_ITEMS.length) % VISIBLE_MEDIA_ITEMS.length;
@@ -757,7 +779,7 @@ const closeLightbox = (onClosed) => {
 };
 
 const getLightboxElement = (mediaItem) => {
-  const layoutItem = layoutItems.find((item) => item.mediaItem.id === mediaItem.id);
+  const layoutItem = layoutItemByMediaId.get(mediaItem.id);
   return layoutItem ? activeMap.get(layoutItem.key)?.poolEl : null;
 };
 
@@ -776,14 +798,19 @@ const navigateLightbox = (direction) => {
     return;
   }
 
-  const currentIndex = VISIBLE_MEDIA_ITEMS.findIndex(
-    (item) => item.id === state.lightboxItem.mediaItem.id
-  );
-  if (currentIndex === -1 || VISIBLE_MEDIA_ITEMS.length < 2) return;
+  const currentIndex = visibleMediaIndexById.get(state.lightboxItem.mediaItem.id);
+  if (currentIndex === undefined || VISIBLE_MEDIA_ITEMS.length < 2) return;
 
   const nextIndex = (currentIndex + direction + VISIBLE_MEDIA_ITEMS.length) % VISIBLE_MEDIA_ITEMS.length;
   const nextMediaItem = VISIBLE_MEDIA_ITEMS[nextIndex];
-  const nextElement = getLightboxElement(nextMediaItem);
+  let nextElement = getLightboxElement(nextMediaItem);
+  if (!nextElement) {
+    const nextLayoutItem = layoutItemByMediaId.get(nextMediaItem.id);
+    if (!nextLayoutItem) return;
+    window.scrollTo(0, Math.max(0, nextLayoutItem.y - window.innerHeight / 2));
+    renderVisibleItems();
+    nextElement = getLightboxElement(nextMediaItem);
+  }
   if (!nextElement) return;
 
   state.lightboxAnimating = true;
@@ -909,10 +936,22 @@ const onWindowResize = () => {
   renderVisibleItems();
 };
 
-// --- Animation Loop ---
+let renderFrame = null;
+const scheduleVisibleRender = () => {
+  if (renderFrame !== null) return;
+  renderFrame = requestAnimationFrame(() => {
+    renderFrame = null;
+    renderVisibleItems();
+  });
+};
 
-const animate = () => {
-  requestAnimationFrame(animate);
+let resizeFrame = null;
+const scheduleLayoutRebuild = () => {
+  if (resizeFrame !== null) return;
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = null;
+    onWindowResize();
+  });
 };
 
 // --- Layout switcher ---
@@ -1311,7 +1350,8 @@ const init = async () => {
   viewport.addEventListener("touchstart", onTouchStart, { passive: true });
   viewport.addEventListener("touchmove", onTouchMove, { passive: true });
   viewport.addEventListener("touchend", onTouchEnd, { passive: true });
-  window.addEventListener("resize", onWindowResize);
+  window.addEventListener("scroll", scheduleVisibleRender, { passive: true });
+  window.addEventListener("resize", scheduleLayoutRebuild);
   window.addEventListener("touchstart", onLightboxTouchStart, { passive: true });
   window.addEventListener("touchend", onLightboxTouchEnd, { passive: true });
 
@@ -1333,7 +1373,6 @@ const init = async () => {
     }
   });
 
-  animate();
 };
 
 init();
