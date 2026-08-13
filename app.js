@@ -319,14 +319,32 @@ const elToMediaItem = new WeakMap();
 const hoverPreviewWarmers = new Map();
 const MAX_HOVER_PREVIEW_WARMERS = 12;
 
+// Stream from Twitter in the browser so video bytes do not pass through Vercel.
+// Keep the proxy as a transparent compatibility fallback for any URL that a
+// browser cannot load directly.
+const videoProxyUrl = (url) => `/api/video-proxy?src=${encodeURIComponent(url)}`;
+
+const setVideoSource = (video, url) => {
+  let usingFallback = false;
+
+  video.addEventListener("error", () => {
+    if (usingFallback) return;
+    usingFallback = true;
+    video.src = videoProxyUrl(url);
+    video.load();
+  });
+
+  video.src = url;
+};
+
 const createHoverPreviewVideo = (mediaItem) => {
   const video = document.createElement("video");
-  video.src = `/api/video-proxy?src=${encodeURIComponent(mediaItem.image.videoUrl)}`;
+  setVideoSource(video, mediaItem.image.videoUrl);
   video.poster = twitterImageUrl(mediaItem.image.url, "medium");
   video.muted = true;
   video.loop = true;
   video.playsInline = true;
-  video.preload = "auto";
+  video.preload = "metadata";
   return video;
 };
 
@@ -552,7 +570,7 @@ const preloadLightboxMedia = (mediaItem) => {
 
   if (resource instanceof HTMLVideoElement) {
     resource.preload = "metadata";
-    resource.src = `/api/video-proxy?src=${encodeURIComponent(image.videoUrl)}`;
+    setVideoSource(resource, image.videoUrl);
     resource.load();
   } else {
     resource.src = twitterImageUrl(image.url, "4096x4096");
@@ -584,7 +602,7 @@ const preloadLightboxNeighbors = (mediaItem) => {
 const createLightboxMedia = (image) => {
   if (image.type === "video" && image.videoUrl) {
     const video = document.createElement("video");
-    video.src = `/api/video-proxy?src=${encodeURIComponent(image.videoUrl)}`;
+    setVideoSource(video, image.videoUrl);
     video.poster = twitterImageUrl(image.url, "medium");
     video.controls = true;
     video.setAttribute("playsinline", "");
