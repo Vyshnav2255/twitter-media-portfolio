@@ -21,6 +21,7 @@ export default async function handler(req, res) {
       Accept: "video/*,*/*;q=0.8",
       Referer: "https://twitter.com/",
       Origin: "https://twitter.com",
+      ...(req.headers.range ? { Range: req.headers.range } : {}),
     },
   };
 
@@ -28,6 +29,7 @@ export default async function handler(req, res) {
     const headers = {
       "Content-Type": proxyRes.headers["content-type"] || "application/octet-stream",
       "Content-Length": proxyRes.headers["content-length"] || undefined,
+      "Content-Range": proxyRes.headers["content-range"] || undefined,
       "Accept-Ranges": proxyRes.headers["accept-ranges"] || "bytes",
       "Cache-Control": proxyRes.headers["cache-control"] || "no-cache",
       "Access-Control-Allow-Origin": "*",

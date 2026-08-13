@@ -319,22 +319,11 @@ const elToMediaItem = new WeakMap();
 const hoverPreviewWarmers = new Map();
 const MAX_HOVER_PREVIEW_WARMERS = 12;
 
-// Stream from Twitter in the browser so video bytes do not pass through Vercel.
-// Keep the proxy as a transparent compatibility fallback for any URL that a
-// browser cannot load directly.
+// Twitter blocks direct browser video requests, so stream through the proxy.
 const videoProxyUrl = (url) => `/api/video-proxy?src=${encodeURIComponent(url)}`;
 
 const setVideoSource = (video, url) => {
-  let usingFallback = false;
-
-  video.addEventListener("error", () => {
-    if (usingFallback) return;
-    usingFallback = true;
-    video.src = videoProxyUrl(url);
-    video.load();
-  });
-
-  video.src = url;
+  video.src = videoProxyUrl(url);
 };
 
 const createHoverPreviewVideo = (mediaItem) => {

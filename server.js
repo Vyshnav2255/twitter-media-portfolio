@@ -63,6 +63,7 @@ const handleApi = (req, res) => {
         Accept: "video/*,*/*;q=0.8",
         Referer: "https://twitter.com/",
         Origin: "https://twitter.com",
+        ...(req.headers.range ? { Range: req.headers.range } : {}),
       },
     };
 
@@ -71,6 +72,7 @@ const handleApi = (req, res) => {
       const headers = {
         "Content-Type": remoteRes.headers["content-type"] || "application/octet-stream",
         "Content-Length": remoteRes.headers["content-length"] || undefined,
+        "Content-Range": remoteRes.headers["content-range"] || undefined,
         "Accept-Ranges": remoteRes.headers["accept-ranges"] || "bytes",
         "Cache-Control": remoteRes.headers["cache-control"] || "no-cache",
         "Access-Control-Allow-Origin": "*",
