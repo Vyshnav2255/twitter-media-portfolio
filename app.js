@@ -818,7 +818,6 @@ const navigateLightbox = (direction) => {
     renderVisibleItems();
     nextElement = getLightboxElement(nextMediaItem);
   }
-  if (!nextElement) return;
 
   state.lightboxAnimating = true;
 
@@ -826,18 +825,29 @@ const navigateLightbox = (direction) => {
   const previousMedia = lightboxClone.firstElementChild;
   const nextMedia = createLightboxMedia(nextMediaItem.image);
   nextMedia.style.opacity = "0";
-  nextMedia.style.transform = "translate3d(0, 0, 0)";
-  nextMedia.style.transition = "opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1)";
+  nextMedia.style.transform = `translate3d(${direction * 100}%, 0, 0)`;
+  nextMedia.style.transition = "opacity 0.4s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)";
   lightboxClone.appendChild(nextMedia);
 
   if (previousMedia) {
     previousMedia.style.opacity = "0";
-    previousMedia.style.transform = "translate3d(0, 0, 0)";
-    previousMedia.style.transition = "opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1)";
-    setTimeout(() => previousMedia.remove(), 320);
+    previousMedia.style.transform = `translate3d(${-direction * 100}%, 0, 0)`;
+    previousMedia.style.transition = "opacity 0.4s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)";
+    setTimeout(() => {
+      if (previousMedia instanceof HTMLVideoElement) previousMedia.pause();
+      previousMedia.remove();
+    }, 400);
   }
+
+  // Each item is centered at its final dimensions immediately; only the media
+  // itself moves, so this reads as a directional carousel rather than a morph.
+  lightboxClone.style.width = `${nextBounds.width}px`;
+  lightboxClone.style.height = `${nextBounds.height}px`;
+  lightboxClone.style.transform = `translate3d(${nextBounds.x}px, ${nextBounds.y}px, 0)`;
+  void nextMedia.offsetWidth;
   requestAnimationFrame(() => {
     nextMedia.style.opacity = "1";
+    nextMedia.style.transform = "translate3d(0, 0, 0)";
   });
 
   const post = nextMediaItem.post;
@@ -850,7 +860,9 @@ const navigateLightbox = (direction) => {
   lightboxNavHint.style.top = `${Math.max(16, nextBounds.y - 32)}px`;
 
   state.lightboxItem = {
-    element: nextElement,
+    // A tile can be temporarily unmounted by grid virtualization. Keep the
+    // current source in that rare case so carousel navigation never drops.
+    element: nextElement || state.lightboxItem.element,
     mediaItem: nextMediaItem,
     _endX: nextBounds.x,
     _endY: nextBounds.y,
@@ -859,18 +871,21 @@ const navigateLightbox = (direction) => {
   };
   preloadLightboxNeighbors(nextMediaItem);
 
-  Motion.animate(
-    lightboxClone,
-    {
-      width: `${nextBounds.width}px`,
-      height: `${nextBounds.height}px`,
-      transform: `translate3d(${nextBounds.x}px, ${nextBounds.y}px, 0)`,
-    },
-    { type: "spring", duration: 0.48, bounce: 0.06 }
-  ).then(() => {
+  let transitionComplete = false;
+  let transitionTimeout;
+  const onMediaTransitionEnd = (event) => {
+    if (event.propertyName === "transform") finishNavigation();
+  };
+  const finishNavigation = () => {
+    if (transitionComplete) return;
+    transitionComplete = true;
+    nextMedia.removeEventListener("transitionend", onMediaTransitionEnd);
+    clearTimeout(transitionTimeout);
     state.lightboxAnimating = false;
     flushLightboxNavigationQueue();
-  });
+  };
+  nextMedia.addEventListener("transitionend", onMediaTransitionEnd);
+  transitionTimeout = setTimeout(finishNavigation, 500);
 };
 
 const onLightboxTouchStart = (event) => {
