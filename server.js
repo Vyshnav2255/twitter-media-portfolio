@@ -5,6 +5,7 @@ const path = require("path");
 const { URL } = require("url");
 
 const PORT = process.env.PORT || 3000;
+const PROJECT_ROOT = __dirname;
 const MIME = {
   ".html": "text/html",
   ".css": "text/css",
@@ -23,11 +24,14 @@ const handleApi = (req, res) => {
     req.on("end", () => {
       try {
         const { hiddenIds, hiddenMediaIds } = JSON.parse(body);
-        const configPath = path.join(__dirname, "portfolio.config.json");
+        const configPath = path.join(PROJECT_ROOT, "portfolio.config.json");
         const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
         config.hiddenIds = hiddenIds || [];
         config.hiddenMediaIds = hiddenMediaIds || [];
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+        // Hide/unhide should only save the config state. Pruning is handled explicitly by
+        // the sync-media script instead of being triggered by the server API.
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
       } catch (e) {

@@ -12,6 +12,7 @@ const {
   readFileSync,
   existsSync,
   readdirSync,
+  mkdirSync,
 } = require("fs");
 const { join } = require("path");
 const { tmpdir, homedir } = require("os");
@@ -20,6 +21,9 @@ const { pbkdf2Sync, createDecipheriv, randomUUID } = require("crypto");
 // --- Config ---
 
 const CONFIG_PATH = join(__dirname, "portfolio.config.json");
+const KEEP_HIDDEN = process.argv.includes("--keep-hidden") || process.env.KEEP_HIDDEN === "1";
+const PRUNE_HIDDEN = !KEEP_HIDDEN;
+const AUTO_PRUNE = true;
 
 function loadConfig() {
   if (!existsSync(CONFIG_PATH)) {
@@ -33,6 +37,8 @@ const SCREEN_NAME = config.handle;
 const MAX_POSTS = config.maxPosts || 100;
 const COOKIE_BROWSER = config.cookieBrowser || config.browser || "chrome";
 const COOKIE_PROFILE = config.cookieProfile || config.browserProfile || "";
+const HIDDEN_MEDIA_IDS = new Set(config.hiddenMediaIds || []);
+const HIDDEN_POST_IDS = new Set(config.hiddenIds || []);
 
 if (!SCREEN_NAME) {
   console.error("No handle configured. Set your Twitter handle in portfolio.config.json:");
@@ -232,21 +238,131 @@ function fetchGraphQL(queryId, operation, variables, fieldToggles) {
 
   const url = `https://x.com/i/api/graphql/${queryId}/${operation}?${params}`;
 
-  const result = execFileSync("curl", [
-    "-s", "-S", "--max-time", "30",
-    "-H", `authorization: Bearer ${X_PUBLIC_BEARER}`,
-    "-H", `x-csrf-token: ${csrfToken}`,
-    "-H", "x-twitter-auth-type: OAuth2Session",
-    "-H", "x-twitter-active-user: yes",
-    "-H", `cookie: ${cookieHeader}`,
-    "-H", "user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
-    url,
-  ], { encoding: "utf8", maxBuffer: 50 * 1024 * 1024 });
+  let result;
+  try {
+    result = execFileSync("curl", [
+      "-s", "-S", "--max-time", "30",
+      "-H", `authorization: Bearer ${X_PUBLIC_BEARER}`,
+      "-H", `x-csrf-token: ${csrfToken}`,
+      "-H", "x-twitter-auth-type: OAuth2Session",
+      "-H", "x-twitter-active-user: yes",
+      "-H", `cookie: ${cookieHeader}`,
+      "-H", "user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+      url,
+    ], { encoding: "utf8", maxBuffer: 50 * 1024 * 1024 });
+  } catch (error) {
+    const text = String(error?.stderr || error?.message || "");
+    throw new Error(`GraphQL request failed: ${text.trim() || error.message}`);
+  }
 
-  return JSON.parse(result);
+  try {
+    return JSON.parse(result);
+  } catch (error) {
+    const trimmed = String(result || "").trim();
+    throw new Error(`Invalid JSON from GraphQL: ${trimmed.slice(0, 180)}`);
+  }
 }
 
 // --- Parse tweet ---
+
+function sanitizeFileName(value) {
+  return String(value || "media")
+    .replace(/[^a-zA-Z0-9-_]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "media";
+}
+
+function getLocalVideoUsageSet(posts) {
+  const used = new Set();
+
+  for (const post of posts || []) {
+    for (const image of post.images || []) {
+      if (typeof image.videoUrl === "string" && image.videoUrl.startsWith("assets/videos/")) {
+        used.add(image.videoUrl);
+      }
+    }
+  }
+
+  return used;
+}
+
+function cleanupUnusedVideoFiles(posts, keepHidden = true) {
+  const videoDir = join(__dirname, "assets", "videos");
+  if (!existsSync(videoDir)) return 0;
+
+  const used = getLocalVideoUsageSet(posts);
+  const hiddenMediaIds = new Set(config.hiddenMediaIds || []);
+  const hiddenPostIds = new Set(config.hiddenIds || []);
+
+  let removed = 0;
+  for (const file of readdirSync(videoDir)) {
+    if (!file.endsWith(".mp4")) continue;
+
+    const relative = `assets/videos/${file}`;
+    const mediaKey = file.replace(/\.mp4$/, "");
+    const isReferenced = used.has(relative);
+    const isHiddenMedia = hiddenMediaIds.has(mediaKey);
+    const isHiddenPost = hiddenPostIds.has(mediaKey.split("-")[0]);
+
+    if ((keepHidden && (isHiddenMedia || isHiddenPost)) || isReferenced) {
+      continue;
+    }
+
+    unlinkSync(join(videoDir, file));
+    removed++;
+  }
+
+  if (removed > 0) {
+    console.log(`  Removed ${removed} unused video file(s) from assets/videos`);
+  }
+
+  return removed;
+}
+
+function downloadVideoToLocal(remoteUrl, mediaId, index) {
+  if (!remoteUrl) return null;
+
+  const videoDir = join(__dirname, "assets", "videos");
+  mkdirSync(videoDir, { recursive: true });
+
+  const safeName = `${sanitizeFileName(mediaId)}-${index}.mp4`;
+  const outputPath = join(videoDir, safeName);
+  const tmpPath = `${outputPath}.tmp`;
+
+  if (existsSync(outputPath)) {
+    return `assets/videos/${safeName}`;
+  }
+
+  try {
+    execFileSync("curl", [
+      "-L",
+      "-A",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+      "-H",
+      "Referer: https://x.com/",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "90",
+      "-o",
+      tmpPath,
+      remoteUrl,
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+
+    copyFileSync(tmpPath, outputPath);
+    unlinkSync(tmpPath);
+    return `assets/videos/${safeName}`;
+  } catch (error) {
+    try { unlinkSync(tmpPath); } catch {}
+    console.warn(`  Failed to download video for ${mediaId}: ${error.message}`);
+    return null;
+  }
+}
+
+function shouldSkipMediaDownload(tweetId, mediaIndex) {
+  return HIDDEN_POST_IDS.has(String(tweetId)) || HIDDEN_MEDIA_IDS.has(`${tweetId}-${mediaIndex}`);
+}
 
 function parseTweet(tweetResult) {
   const tweet = tweetResult?.tweet ?? tweetResult;
@@ -262,7 +378,7 @@ function parseTweet(tweetResult) {
   const mediaEntities = legacy.extended_entities?.media ?? legacy.entities?.media ?? [];
   if (mediaEntities.length === 0) return null;
 
-  const images = mediaEntities.map((m) => {
+  const images = mediaEntities.map((m, index) => {
     const variants = Array.isArray(m.video_info?.variants) ? m.video_info.variants : [];
     const mp4Variants = variants
       .filter((v) => v.content_type === "video/mp4" && v.url)
@@ -272,12 +388,16 @@ function parseTweet(tweetResult) {
       }))
       .sort((a, b) => b.bitrate - a.bitrate);
 
+    const bestVideoUrl = mp4Variants[0]?.url || null;
+    const isHidden = shouldSkipMediaDownload(tweetId, index);
+    const localVideoUrl = isHidden || !bestVideoUrl ? null : downloadVideoToLocal(bestVideoUrl, tweetId, index);
+
     return {
       url: m.media_url_https,
       width: m.original_info?.width ?? m.sizes?.large?.w ?? 1,
       height: m.original_info?.height ?? m.sizes?.large?.h ?? 1,
       type: m.type || "photo",
-      videoUrl: mp4Variants[0]?.url || null,
+      videoUrl: isHidden ? null : (localVideoUrl || bestVideoUrl || null),
       videoVariants: mp4Variants,
     };
   });
@@ -446,6 +566,13 @@ async function main() {
   const output = { profile, posts };
   const outPath = join(__dirname, "portfolio-data.json");
   writeFileSync(outPath, JSON.stringify(output, null, 2));
+
+  // Remove stale cached videos that are no longer referenced by the current portfolio.
+  // This runs automatically at the end of each sync, and hidden files are only deleted
+  // when an explicit prune mode is requested.
+  if (AUTO_PRUNE) {
+    cleanupUnusedVideoFiles(posts, !PRUNE_HIDDEN);
+  }
 
   // Update config with profile info (preserve hiddenIds)
   config.handle = SCREEN_NAME;

@@ -30,6 +30,11 @@ copyFile(
   path.join(DIST, "vendor", "motion.js")
 );
 
+const videoDir = path.join(ROOT, "assets", "videos");
+if (fs.existsSync(videoDir)) {
+  copyDir(videoDir, path.join(DIST, "assets", "videos"));
+}
+
 const html = fs
   .readFileSync(path.join(ROOT, "index.html"), "utf8")
   .replace("node_modules/motion/dist/motion.js", "vendor/motion.js");

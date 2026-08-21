@@ -317,13 +317,20 @@ const freePool = [];
 const activeMap = new Map();
 const elToMediaItem = new WeakMap();
 const hoverPreviewWarmers = new Map();
-const MAX_HOVER_PREVIEW_WARMERS = 12;
+const MAX_HOVER_PREVIEW_WARMERS = 2;
 
-// Twitter blocks direct browser video requests, so stream through the proxy.
-const videoProxyUrl = (url) => `/api/video-proxy?src=${encodeURIComponent(url)}`;
+const resolveVideoSource = (url) => {
+  if (!url) return "";
+  return /^https?:\/\//i.test(url) ? url : `./${url.replace(/^\.\//, "")}`;
+};
 
 const setVideoSource = (video, url) => {
-  video.src = videoProxyUrl(url);
+  if (!url) {
+    video.removeAttribute("src");
+    return;
+  }
+
+  video.src = resolveVideoSource(url);
 };
 
 const createHoverPreviewVideo = (mediaItem) => {
