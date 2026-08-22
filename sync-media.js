@@ -12,17 +12,19 @@ const {
   readFileSync,
   existsSync,
   readdirSync,
-  mkdirSync,
 } = require("fs");
 const { join } = require("path");
 const { tmpdir, homedir } = require("os");
 const { pbkdf2Sync, createDecipheriv, randomUUID } = require("crypto");
+const {
+  downloadVideoToLocal,
+  cleanupUnusedVideoFiles,
+  getBestVideoUrl,
+} = require("./video-files");
 
 // --- Config ---
 
 const CONFIG_PATH = join(__dirname, "portfolio.config.json");
-const KEEP_HIDDEN = process.argv.includes("--keep-hidden") || process.env.KEEP_HIDDEN === "1";
-const PRUNE_HIDDEN = !KEEP_HIDDEN;
 const AUTO_PRUNE = true;
 
 function loadConfig() {
@@ -265,101 +267,6 @@ function fetchGraphQL(queryId, operation, variables, fieldToggles) {
 
 // --- Parse tweet ---
 
-function sanitizeFileName(value) {
-  return String(value || "media")
-    .replace(/[^a-zA-Z0-9-_]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80) || "media";
-}
-
-function getLocalVideoUsageSet(posts) {
-  const used = new Set();
-
-  for (const post of posts || []) {
-    for (const image of post.images || []) {
-      if (typeof image.videoUrl === "string" && image.videoUrl.startsWith("assets/videos/")) {
-        used.add(image.videoUrl);
-      }
-    }
-  }
-
-  return used;
-}
-
-function cleanupUnusedVideoFiles(posts, keepHidden = true) {
-  const videoDir = join(__dirname, "assets", "videos");
-  if (!existsSync(videoDir)) return 0;
-
-  const used = getLocalVideoUsageSet(posts);
-  const hiddenMediaIds = new Set(config.hiddenMediaIds || []);
-  const hiddenPostIds = new Set(config.hiddenIds || []);
-
-  let removed = 0;
-  for (const file of readdirSync(videoDir)) {
-    if (!file.endsWith(".mp4")) continue;
-
-    const relative = `assets/videos/${file}`;
-    const mediaKey = file.replace(/\.mp4$/, "");
-    const isReferenced = used.has(relative);
-    const isHiddenMedia = hiddenMediaIds.has(mediaKey);
-    const isHiddenPost = hiddenPostIds.has(mediaKey.split("-")[0]);
-
-    if ((keepHidden && (isHiddenMedia || isHiddenPost)) || isReferenced) {
-      continue;
-    }
-
-    unlinkSync(join(videoDir, file));
-    removed++;
-  }
-
-  if (removed > 0) {
-    console.log(`  Removed ${removed} unused video file(s) from assets/videos`);
-  }
-
-  return removed;
-}
-
-function downloadVideoToLocal(remoteUrl, mediaId, index) {
-  if (!remoteUrl) return null;
-
-  const videoDir = join(__dirname, "assets", "videos");
-  mkdirSync(videoDir, { recursive: true });
-
-  const safeName = `${sanitizeFileName(mediaId)}-${index}.mp4`;
-  const outputPath = join(videoDir, safeName);
-  const tmpPath = `${outputPath}.tmp`;
-
-  if (existsSync(outputPath)) {
-    return `assets/videos/${safeName}`;
-  }
-
-  try {
-    execFileSync("curl", [
-      "-L",
-      "-A",
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
-      "-H",
-      "Referer: https://x.com/",
-      "--fail",
-      "--silent",
-      "--show-error",
-      "--max-time",
-      "90",
-      "-o",
-      tmpPath,
-      remoteUrl,
-    ], { stdio: ["ignore", "pipe", "pipe"] });
-
-    copyFileSync(tmpPath, outputPath);
-    unlinkSync(tmpPath);
-    return `assets/videos/${safeName}`;
-  } catch (error) {
-    try { unlinkSync(tmpPath); } catch {}
-    console.warn(`  Failed to download video for ${mediaId}: ${error.message}`);
-    return null;
-  }
-}
-
 function shouldSkipMediaDownload(tweetId, mediaIndex) {
   return HIDDEN_POST_IDS.has(String(tweetId)) || HIDDEN_MEDIA_IDS.has(`${tweetId}-${mediaIndex}`);
 }
@@ -388,16 +295,23 @@ function parseTweet(tweetResult) {
       }))
       .sort((a, b) => b.bitrate - a.bitrate);
 
-    const bestVideoUrl = mp4Variants[0]?.url || null;
+    const bestVideoUrl = getBestVideoUrl({ videoVariants: mp4Variants });
     const isHidden = shouldSkipMediaDownload(tweetId, index);
-    const localVideoUrl = isHidden || !bestVideoUrl ? null : downloadVideoToLocal(bestVideoUrl, tweetId, index);
+    let localVideoUrl = null;
+    if (!isHidden && bestVideoUrl) {
+      try {
+        localVideoUrl = downloadVideoToLocal(bestVideoUrl, tweetId, index);
+      } catch (error) {
+        console.warn(`  Failed to download video for ${tweetId}: ${error.message}`);
+      }
+    }
 
     return {
       url: m.media_url_https,
       width: m.original_info?.width ?? m.sizes?.large?.w ?? 1,
       height: m.original_info?.height ?? m.sizes?.large?.h ?? 1,
       type: m.type || "photo",
-      videoUrl: isHidden ? null : (localVideoUrl || bestVideoUrl || null),
+      videoUrl: isHidden ? null : localVideoUrl,
       videoVariants: mp4Variants,
     };
   });
@@ -451,6 +365,7 @@ async function main() {
   const allTweets = [];
   let cursor = null;
   let page = 0;
+  let syncFailed = false;
 
   while (true) {
     page++;
@@ -474,6 +389,7 @@ async function main() {
       });
     } catch (e) {
       console.error(`\n  Error fetching page ${page}: ${e.message}`);
+      syncFailed = true;
       break;
     }
 
@@ -548,6 +464,10 @@ async function main() {
     cursor = nextCursor;
   }
 
+  if (syncFailed || allTweets.length === 0) {
+    throw new Error("Sync returned no media posts. Keeping the existing portfolio data and video cache unchanged.");
+  }
+
   // 3. Deduplicate
   const seen = new Set();
   const unique = [];
@@ -567,11 +487,9 @@ async function main() {
   const outPath = join(__dirname, "portfolio-data.json");
   writeFileSync(outPath, JSON.stringify(output, null, 2));
 
-  // Remove stale cached videos that are no longer referenced by the current portfolio.
-  // This runs automatically at the end of each sync, and hidden files are only deleted
-  // when an explicit prune mode is requested.
+  // Remove stale cached videos and any files for currently hidden media.
   if (AUTO_PRUNE) {
-    cleanupUnusedVideoFiles(posts, !PRUNE_HIDDEN);
+    cleanupUnusedVideoFiles(posts, config);
   }
 
   // Update config with profile info (preserve hiddenIds)

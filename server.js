@@ -3,6 +3,7 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
+const { syncVideoFilesForHiddenChange } = require("./video-files");
 
 const PORT = process.env.PORT || 3000;
 const PROJECT_ROOT = __dirname;
@@ -14,6 +15,7 @@ const MIME = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".svg": "image/svg+xml",
+  ".mp4": "video/mp4",
 };
 
 // API endpoint to save hidden IDs to config
@@ -25,15 +27,32 @@ const handleApi = (req, res) => {
       try {
         const { hiddenIds, hiddenMediaIds } = JSON.parse(body);
         const configPath = path.join(PROJECT_ROOT, "portfolio.config.json");
-        const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-        config.hiddenIds = hiddenIds || [];
-        config.hiddenMediaIds = hiddenMediaIds || [];
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        const dataPath = path.join(PROJECT_ROOT, "portfolio-data.json");
+        const prevConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+        const portfolioData = JSON.parse(fs.readFileSync(dataPath, "utf8"));
+        const nextConfig = {
+          ...prevConfig,
+          hiddenIds: hiddenIds || [],
+          hiddenMediaIds: hiddenMediaIds || [],
+        };
 
-        // Hide/unhide should only save the config state. Pruning is handled explicitly by
-        // the sync-media script instead of being triggered by the server API.
+        const { videoUpdates, errors } = syncVideoFilesForHiddenChange(
+          prevConfig,
+          nextConfig,
+          portfolioData
+        );
+
+        if (errors.length > 0) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: errors.join("; ") }));
+          return;
+        }
+
+        fs.writeFileSync(dataPath, JSON.stringify(portfolioData, null, 2));
+        fs.writeFileSync(configPath, JSON.stringify(nextConfig, null, 2));
+
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true }));
+        res.end(JSON.stringify({ ok: true, videoUpdates }));
       } catch (e) {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));

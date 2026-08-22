@@ -112,21 +112,37 @@ const getVisibleMediaCount = () =>
 const isMediaHidden = (mediaItem) =>
   hiddenMediaIds.has(mediaItem.id) || hiddenIds.has(mediaItem.post.id);
 
-const toggleMediaHidden = (mediaItem) => {
-  if (hiddenIds.has(mediaItem.post.id)) {
-    hiddenIds.delete(mediaItem.post.id);
+const computeToggleMediaHidden = (mediaItem) => {
+  const nextHiddenIds = new Set(hiddenIds);
+  const nextHiddenMediaIds = new Set(hiddenMediaIds);
+
+  if (nextHiddenIds.has(mediaItem.post.id)) {
+    nextHiddenIds.delete(mediaItem.post.id);
     for (const item of ALL_MEDIA_ITEMS) {
       if (item.post.id === mediaItem.post.id && item.id !== mediaItem.id) {
-        hiddenMediaIds.add(item.id);
+        nextHiddenMediaIds.add(item.id);
       }
     }
-    return;
+  } else if (nextHiddenMediaIds.has(mediaItem.id)) {
+    nextHiddenMediaIds.delete(mediaItem.id);
+  } else {
+    nextHiddenMediaIds.add(mediaItem.id);
   }
 
-  if (hiddenMediaIds.has(mediaItem.id)) {
-    hiddenMediaIds.delete(mediaItem.id);
-  } else {
-    hiddenMediaIds.add(mediaItem.id);
+  return {
+    hiddenIds: [...nextHiddenIds],
+    hiddenMediaIds: [...nextHiddenMediaIds],
+  };
+};
+
+const applyVideoUpdates = (videoUpdates) => {
+  if (!videoUpdates) return;
+
+  for (const [mediaId, videoUrl] of Object.entries(videoUpdates)) {
+    const mediaItem = ALL_MEDIA_ITEMS.find((item) => item.id === mediaId);
+    if (mediaItem) {
+      mediaItem.image.videoUrl = videoUrl;
+    }
   }
 };
 
@@ -320,8 +336,8 @@ const hoverPreviewWarmers = new Map();
 const MAX_HOVER_PREVIEW_WARMERS = 2;
 
 const resolveVideoSource = (url) => {
-  if (!url) return "";
-  return /^https?:\/\//i.test(url) ? url : `./${url.replace(/^\.\//, "")}`;
+  if (!url || /^https?:\/\//i.test(url)) return "";
+  return `./${url.replace(/^\.\//, "")}`;
 };
 
 const setVideoSource = (video, url) => {
@@ -942,10 +958,15 @@ const onMouseUp = (e) => {
   if (!mediaItem) return;
 
   if (editMode) {
-    toggleMediaHidden(mediaItem);
-    saveHiddenIds();
-    updateEditCounter();
-    renderVisibleItems();
+    const newState = computeToggleMediaHidden(mediaItem);
+    saveHiddenIds(newState).then((success) => {
+      if (!success) return;
+      hiddenIds = new Set(newState.hiddenIds);
+      hiddenMediaIds = new Set(newState.hiddenMediaIds);
+      saveLocalHiddenState();
+      updateEditCounter();
+      renderVisibleItems();
+    });
   } else {
     openLightbox(target, mediaItem);
   }
@@ -1050,16 +1071,21 @@ const applyLayout = (layout) => {
 
 // --- Edit mode ---
 
-const saveHiddenIds = () => {
-  saveLocalHiddenState();
-
-  fetch("/api/hidden", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(getHiddenState()),
-  }).catch(() => {
-    // Static deployments cannot write portfolio.config.json; localStorage keeps edits in this browser.
-  });
+const saveHiddenIds = async (state) => {
+  try {
+    const response = await fetch("/api/hidden", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save hidden state: ${response.status}`);
+    }
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
 };
 
 const updateEditCounter = () => {
