@@ -58,6 +58,42 @@ The deployed site is read-only. Use local edit mode to hide/show media, then com
 - **Lightbox** — Click any post to view full-size with a link to the original tweet
 - **Drag navigation** — Drag or scroll through your media
 
+## How Media Sync Works
+
+After setting `handle` and `maxPosts` in `portfolio.config.json`, run `npm run sync` or `node sync-media.js` to update your portfolio.
+
+1. The sync uses your saved X login from the browser you chose in the config. Make sure you are logged in to `x.com` first.
+2. It gets your posts with images or videos, removes duplicates, puts the newest posts first, and keeps up to the number set in `maxPosts`.
+3. It saves the results, including your profile information, in `portfolio-data.json`.
+4. It keeps your hide settings in `portfolio.config.json`. If the sync fails or finds nothing, your current portfolio and downloaded videos are left alone.
+5. It removes old video files that are no longer needed.
+
+Syncing does not delete anything from your X account. It only updates the copy used by this portfolio.
+
+## Hide, Unhide, and Delete
+
+### Hide
+
+Start the local server and click the pencil button to enter edit mode. Click a media tile to hide it. It will disappear from the normal grid or feed, but you can still see it while editing. Your change is saved automatically in `portfolio.config.json`.
+
+The setting `hiddenMediaIds` keeps track of individual images or videos. The older `hiddenIds` setting hides everything from a whole post and is still supported.
+
+### Unhide
+
+With edit mode enabled, click a hidden tile again. It will show up in the normal view after the change is saved. If it is a video, the portfolio downloads a new local copy first.
+
+### Delete
+
+There is no button that deletes a post from X. When you hide a video, the portfolio deletes only its downloaded `.mp4` file from `assets/videos/` to save space. The post itself is still remembered, so the video can be downloaded again when you unhide it. If the file cannot be removed or downloaded again, the hide or unhide change is cancelled.
+
+## How Videos Work
+
+- When syncing, the portfolio finds the best available MP4 version of each video.
+- Videos that are not hidden are downloaded into `assets/videos/`, so they can play from your own portfolio.
+- Hidden videos are not downloaded. This saves disk space and makes syncing faster.
+- In Grid view, a video can play silently when you hover over it. Open a video to play it with controls.
+- The local server and the Vercel build include the downloaded video files. A deployed Vercel site cannot save new hide or unhide changes permanently; make those changes locally and redeploy.
+
 ## Configuration
 
 `portfolio.config.json`:
