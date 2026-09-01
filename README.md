@@ -55,6 +55,7 @@ The deployed site is read-only. Use local edit mode to hide/show media, then com
 - **2 layouts** — Grid and Feed — finite scrolling with no repeated tiles
 - **Edit mode** — Click the pencil to toggle. Click posts to show/hide. Saved to config automatically.
 - **Light/Dark theme** — Respects system preference, toggleable
+- **Optional lo-fi music** — Starts only when the music button is pressed
 - **Lightbox** — Click any post to view full-size with a link to the original tweet
 - **Drag navigation** — Drag or scroll through your media
 
@@ -135,6 +136,8 @@ There is no button that deletes a post from X. When you hide a video, the portfo
 ## Credits
 
 Built on top of [@daniel__designs](https://twitter.com/daniel__designs)' twitter-bookmarks-grid & [Nomanjack](https://x.com/Nomandsign)'s twitter-media-portfolio.
+
+Background music: ["Lofi Hip Hop Upbeat"](https://commons.wikimedia.org/wiki/File:Raspberrymusic_-_Lofi_Hip_Hop_Upbeat.ogg) by [Raspberrymusic](https://raspberrysounds.bandcamp.com/), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 ## License
 
 MIT

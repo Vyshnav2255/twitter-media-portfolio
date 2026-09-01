@@ -259,6 +259,11 @@ body.lightbox-open .top-nav {
   transition: opacity var(--transition-fast);
 }
 
+.music-toggle-icon {
+  width: 18px;
+  height: 18px;
+}
+
 [data-theme="light"] :is(.toolbar-btn, .profile-info-icon) img {
   filter: invert(1);
 }

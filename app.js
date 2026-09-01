@@ -42,6 +42,15 @@ const lightboxClose = document.getElementById("lightbox-close");
 const lightboxTitle = document.getElementById("lightbox-title");
 const lightboxLink = document.getElementById("lightbox-link");
 const lightboxNavHint = document.getElementById("lightbox-nav-hint");
+const backgroundMusic = document.getElementById("background-music");
+
+if (backgroundMusic) {
+  backgroundMusic.volume = 0.12;
+  backgroundMusic.muted = false;
+  backgroundMusic.play().catch(() => {
+    // Browsers may block autoplay until the first user interaction.
+  });
+}
 
 const canShowEditControls = () => {
   const host = window.location.hostname;
@@ -1144,6 +1153,54 @@ const createEditToggle = () => {
 
 // --- Theme toggle ---
 
+// Audio must be started by a visitor interaction; this also keeps the portfolio
+// quiet by default for anyone who prefers to browse without background sound.
+const createMusicToggle = () => {
+  const btn = document.createElement("button");
+  btn.id = "music-toggle";
+  btn.className = "toolbar-btn";
+  btn.type = "button";
+  btn.title = "Play lo-fi music";
+  btn.setAttribute("aria-label", "Play lo-fi music");
+  btn.setAttribute("aria-pressed", "false");
+
+  const icon = document.createElement("img");
+  icon.className = "music-toggle-icon";
+  icon.width = 18;
+  icon.height = 18;
+  icon.alt = "Music";
+  btn.appendChild(icon);
+
+  const sync = () => {
+    const isPlaying = Boolean(backgroundMusic && !backgroundMusic.paused);
+    btn.classList.toggle("active", isPlaying);
+    icon.src = isPlaying ? "assets/music-on.svg" : "assets/music-off.svg";
+    btn.title = isPlaying ? "Pause lo-fi music" : "Play lo-fi music";
+    btn.setAttribute("aria-label", btn.title);
+    btn.setAttribute("aria-pressed", String(isPlaying));
+  };
+
+  sync();
+
+  btn.addEventListener("click", async () => {
+    if (!backgroundMusic) return;
+    if (backgroundMusic.paused) {
+      try {
+        await backgroundMusic.play();
+      } catch {
+        // Playback can fail when the browser has disabled audio output.
+      }
+    } else {
+      backgroundMusic.pause();
+    }
+    sync();
+  });
+
+  backgroundMusic?.addEventListener("play", sync);
+  backgroundMusic?.addEventListener("pause", sync);
+  return btn;
+};
+
 const createThemeToggle = () => {
   const btn = document.createElement("button");
   btn.className = "toolbar-btn";
@@ -1323,6 +1380,7 @@ const createToolbar = () => {
 
   const rightGroup = document.createElement("div");
   rightGroup.className = "toolbar-group";
+  rightGroup.appendChild(createMusicToggle());
   rightGroup.appendChild(createThemeToggle());
   toolbar.appendChild(rightGroup);
 
