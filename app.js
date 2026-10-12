@@ -1225,6 +1225,7 @@ const createInfoToggle = () => {
 
 const POPOVER_GAP = 12;
 const POPOVER_MARGIN = 12;
+const POPOVER_CENTER_MAX_WIDTH = 620;
 
 const POPOVER_ICONS = {
   x: `
@@ -1271,12 +1272,18 @@ const positionInfoPopover = (buttonEl) => {
   const popover = infoPopoverEl.getBoundingClientRect();
   const anchorCenter = anchor.left + anchor.width / 2;
 
+  // Narrow viewports centre the card instead of anchoring it, since the trigger
+  // sits off to one side of a nearly full-width toolbar.
+  const centerOnViewport = window.innerWidth <= POPOVER_CENTER_MAX_WIDTH;
+
   // Keep the card on screen by sliding it instead of letting it hang off the edge.
   const halfWidth = popover.width / 2;
-  const left = Math.min(
-    Math.max(anchorCenter, POPOVER_MARGIN + halfWidth),
-    window.innerWidth - POPOVER_MARGIN - halfWidth
-  );
+  const left = centerOnViewport
+    ? window.innerWidth / 2
+    : Math.min(
+        Math.max(anchorCenter, POPOVER_MARGIN + halfWidth),
+        window.innerWidth - POPOVER_MARGIN - halfWidth
+      );
 
   let top = anchor.bottom + POPOVER_GAP;
   let placement = "below";
