@@ -466,9 +466,29 @@ const releaseElement = (el) => {
   // Pool elements are recycled, so intro state must never leak onto the next tile.
   el.classList.remove("is-intro-pending");
   el.style.transitionDelay = "";
+  const img = el.querySelector("img");
+  if (img) img.classList.remove("is-loaded");
   const badge = el.querySelector(".grid-item-video-badge");
   if (badge) badge.style.display = "none";
   freePool.push(el);
+};
+
+// Keeps at most one load listener per pooled image. Pool elements are recycled,
+// so re-binding without clearing first would stack listeners across cycles.
+const watchImageLoad = (img) => {
+  if (img._loadListener) {
+    img.removeEventListener("load", img._loadListener);
+    img.removeEventListener("error", img._loadListener);
+  }
+
+  const onLoad = () => img.classList.add("is-loaded");
+  img._loadListener = onLoad;
+  // Error still marks it loaded, otherwise a dead URL leaves an invisible tile.
+  img.addEventListener("load", onLoad, { once: true });
+  img.addEventListener("error", onLoad, { once: true });
+
+  // Cached images can already be decoded by the time we get here.
+  if (img.complete && img.naturalWidth > 0) onLoad();
 };
 
 // --- Intro animation (first paint only) ---
@@ -509,9 +529,17 @@ const playIntro = (items) => {
   // reflow below is enough to start all the transitions together.
   void grid.offsetHeight;
 
-  requestAnimationFrame(() => {
-    items.forEach((el) => el.classList.remove("is-intro-pending"));
-  });
+  const clear = () =>
+    items.forEach((el) => {
+      el.classList.remove("is-intro-pending");
+      // Drop the stagger delay too, so it can't linger on a later opacity change.
+      el.style.transitionDelay = "";
+    });
+
+  requestAnimationFrame(clear);
+  // Background tabs suspend rAF entirely, so a timeout backstop guarantees the
+  // tiles can never be stranded at opacity 0 if the tab is never focused.
+  setTimeout(clear, 250);
 };
 
 // --- Twitter image sizing ---
@@ -583,6 +611,9 @@ const renderVisibleItems = () => {
         img.src = src;
         img.alt = item.post.text.substring(0, 60);
       }
+      // Rebound every time the tile is (re)assigned, including when the cached
+      // src matches, because releaseElement clears the loaded class.
+      watchImageLoad(img);
 
       const videoBadge = el.querySelector(".grid-item-video-badge");
       if (videoBadge) {
@@ -1101,19 +1132,46 @@ const createLayoutSwitcher = () => {
   return switcher;
 };
 
-const applyLayout = (layout) => {
-  if (isTransitioning) return;
+// Rebuilding the layout swaps every pooled element at once, which reads as a hard
+// cut. Fading the grid out around the swap hides it, and the slight scale drop
+// gives the transition some depth instead of a flat dissolve.
+const withGridCrossfade = (mutate, { outMs = 130, inMs = 240 } = {}) => {
+  if (prefersReducedMotion()) {
+    mutate();
+    return;
+  }
+
   isTransitioning = true;
-  activeLayout = layout;
-
-  // Update body class for cursor styling
-  document.body.classList.remove("layout-masonry", "layout-grid", "layout-feed");
-  document.body.classList.add(`layout-${layout}`);
-
-  grid.style.transition = "opacity 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+  grid.style.transition = `opacity ${outMs}ms var(--ease-standard), scale ${outMs}ms var(--ease-standard)`;
   grid.style.opacity = "0";
+  grid.style.scale = "0.985";
 
   setTimeout(() => {
+    mutate();
+
+    // Commit the rebuilt layout before the fade-in so it transitions in.
+    void grid.offsetHeight;
+
+    grid.style.transition = `opacity ${inMs}ms var(--ease-out-soft), scale ${inMs}ms var(--ease-out-soft)`;
+    grid.style.opacity = "1";
+    grid.style.scale = "1";
+
+    setTimeout(() => {
+      grid.style.transition = "";
+      grid.style.scale = "";
+      isTransitioning = false;
+    }, inMs);
+  }, outMs);
+};
+
+const applyLayout = (layout) => {
+  if (isTransitioning) return;
+  activeLayout = layout;
+
+  withGridCrossfade(() => {
+    document.body.classList.remove("layout-masonry", "layout-grid", "layout-feed");
+    document.body.classList.add(`layout-${layout}`);
+
     for (const [visKey, entry] of activeMap) {
       releaseElement(entry.poolEl);
       activeMap.delete(visKey);
@@ -1121,16 +1179,7 @@ const applyLayout = (layout) => {
 
     buildLayout();
     renderVisibleItems();
-
-    void grid.offsetHeight;
-    grid.style.transition = "opacity 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
-    grid.style.opacity = "1";
-
-    setTimeout(() => {
-      grid.style.transition = "";
-      isTransitioning = false;
-    }, 250);
-  }, 200);
+  });
 };
 
 // --- Edit mode ---
@@ -1180,6 +1229,7 @@ const createEditToggle = () => {
   wrapper.appendChild(counter);
 
   btn.addEventListener("click", () => {
+    if (isTransitioning) return;
     editMode = !editMode;
     btn.classList.toggle("active", editMode);
     counter.classList.toggle("visible", editMode);
@@ -1194,13 +1244,15 @@ const createEditToggle = () => {
       updateEditCounter();
     }
 
-    // Rebuild to show/hide hidden posts
-    for (const [visKey, entry] of activeMap) {
-      releaseElement(entry.poolEl);
-      activeMap.delete(visKey);
-    }
-    buildLayout();
-    renderVisibleItems();
+    // Rebuild to show/hide hidden posts, faded so the pool swap isn't a hard cut.
+    withGridCrossfade(() => {
+      for (const [visKey, entry] of activeMap) {
+        releaseElement(entry.poolEl);
+        activeMap.delete(visKey);
+      }
+      buildLayout();
+      renderVisibleItems();
+    });
   });
 
   return wrapper;

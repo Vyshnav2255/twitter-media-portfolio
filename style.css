@@ -70,6 +70,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
+  transition: background-color 0.4s var(--ease-standard), color 0.4s var(--ease-standard);
 }
 
 #viewport,
@@ -122,8 +123,14 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
   height: 100%;
   border-radius: inherit;
   object-fit: cover;
+  /* Fades in on decode so tiles streaming in during a scroll never pop. */
+  opacity: 0;
   pointer-events: none;
-  transition: filter var(--transition-fast);
+  transition: filter var(--transition-fast), opacity 0.4s var(--ease-out-soft);
+}
+
+.grid-item img.is-loaded {
+  opacity: 1;
 }
 
 .grid-item-video-preview {
@@ -133,7 +140,13 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
   pointer-events: none;
+  transition: opacity 0.28s var(--ease-out-soft);
+}
+
+.grid-item.is-video-previewing .grid-item-video-preview {
+  opacity: 1;
 }
 
 .hover-preview-warmer {
@@ -971,7 +984,13 @@ body.lightbox-open .top-nav {
     animation: none;
   }
 
-  .grid-item {
+  body {
+    transition: none;
+  }
+
+  .grid-item,
+  .grid-item img:not(.play-pill-icon),
+  .grid-item-video-preview {
     transition-duration: 0.01ms;
     transition-delay: 0s;
   }
