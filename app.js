@@ -1223,31 +1223,106 @@ const createInfoToggle = () => {
   return btn;
 };
 
+const POPOVER_GAP = 12;
+const POPOVER_MARGIN = 12;
+
+const POPOVER_ICONS = {
+  x: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53A4.48 4.48 0 0 0 16.62 3c-2.49 0-4.5 2-4.5 4.5 0 .35.04.7.11 1.04A12.8 12.8 0 0 1 3 4.79a4.5 4.5 0 0 0 1.39 6A4.41 4.41 0 0 1 2.8 10v.06c0 2.17 1.54 3.98 3.6 4.38a4.52 4.52 0 0 1-2.03.08 4.51 4.51 0 0 0 4.2 3.13A9.05 9.05 0 0 1 2 19.54 12.78 12.78 0 0 0 8.29 21c7.55 0 11.68-6.26 11.68-11.68 0-.18 0-.35-.01-.53A8.18 8.18 0 0 0 23 3z"/>
+    </svg>
+  `,
+  globe: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18"/>
+    </svg>
+  `,
+  code: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="m9 8-5 4 5 4"/><path d="m15 8 5 4-5 4"/><path d="m13.5 5-3 14"/>
+    </svg>
+  `,
+  arrow: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M7 17 17 7"/><path d="M9 7h8v8"/>
+    </svg>
+  `,
+};
+
+const escapeHtml = (value) =>
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]
+  );
+
+const getHostLabel = (url) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
+const formatCount = (count) => count.toLocaleString();
+
 const positionInfoPopover = (buttonEl) => {
   if (!infoPopoverEl || !buttonEl) return;
-  const rect = buttonEl.getBoundingClientRect();
-  const { height: popoverHeight } = infoPopoverEl.getBoundingClientRect();
-  let top = rect.bottom + 10;
-  let placement = "below";
+  const anchor = buttonEl.getBoundingClientRect();
+  const popover = infoPopoverEl.getBoundingClientRect();
+  const anchorCenter = anchor.left + anchor.width / 2;
 
-  if (top + popoverHeight > window.innerHeight - 24) {
-    top = rect.top - popoverHeight - 10;
+  // Keep the card on screen by sliding it instead of letting it hang off the edge.
+  const halfWidth = popover.width / 2;
+  const left = Math.min(
+    Math.max(anchorCenter, POPOVER_MARGIN + halfWidth),
+    window.innerWidth - POPOVER_MARGIN - halfWidth
+  );
+
+  let top = anchor.bottom + POPOVER_GAP;
+  let placement = "below";
+  if (top + popover.height > window.innerHeight - POPOVER_MARGIN) {
+    top = anchor.top - popover.height - POPOVER_GAP;
     placement = "above";
   }
+  top = Math.max(
+    POPOVER_MARGIN,
+    Math.min(top, window.innerHeight - popover.height - POPOVER_MARGIN)
+  );
+
+  // Arrow follows the trigger, clamped so it never points at the rounded corners.
+  const arrowLimit = Math.max(popover.width / 2 - 18, 18);
+  const arrowOffset = Math.min(Math.max(anchorCenter - left, -arrowLimit + 18), arrowLimit);
 
   infoPopoverEl.dataset.placement = placement;
-  infoPopoverEl.style.left = "50%";
-  infoPopoverEl.style.top = `${top}px`;
+  infoPopoverEl.style.left = `${Math.round(left)}px`;
+  infoPopoverEl.style.top = `${Math.round(top)}px`;
+  infoPopoverEl.style.setProperty("--popover-arrow-offset", `${Math.round(arrowOffset)}px`);
 };
 
 const createInfoPopover = () => {
   const popover = document.createElement("div");
   popover.id = "info-popover";
   popover.className = "info-popover";
+  popover.setAttribute("role", "dialog");
+  popover.setAttribute("aria-label", "Profile info");
   popover.addEventListener("click", (event) => event.stopPropagation());
   document.body.appendChild(popover);
   infoPopoverEl = popover;
   renderInfoPopover();
+};
+
+const renderInfoLink = ({ url, label, icon }) => {
+  const host = getHostLabel(url);
+  return `
+    <a class="info-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">
+      <span class="info-link-icon">${icon}</span>
+      <span class="info-link-body">
+        <span class="info-link-label">${escapeHtml(label)}</span>
+        ${host ? `<span class="info-link-host">${escapeHtml(host)}</span>` : ""}
+      </span>
+      <span class="info-link-arrow">${POPOVER_ICONS.arrow}</span>
+    </a>
+  `;
 };
 
 const renderInfoPopover = () => {
@@ -1257,67 +1332,108 @@ const renderInfoPopover = () => {
   const displayName = PROFILE?.name || handle;
   const avatar = PROFILE?.avatar || "";
   const bio = PROFILE_DETAILS.shortBio || PROFILE?.bio || "";
-  const websiteUrl = PROFILE_DETAILS.websiteUrl || PROFILE?.url || "";
-  const twitterUrl = PROFILE?.url || `https://x.com/${handle}`;
+  const twitterUrl = PROFILE?.url || (handle ? `https://x.com/${handle}` : "");
   const sourceCodeUrl = PROFILE_DETAILS.sourceCodeUrl || "";
 
-  const twitterSvg = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53A4.48 4.48 0 0 0 16.62 3c-2.49 0-4.5 2-4.5 4.5 0 .35.04.7.11 1.04A12.8 12.8 0 0 1 3 4.79a4.5 4.5 0 0 0 1.39 6A4.41 4.41 0 0 1 2.8 10v.06c0 2.17 1.54 3.98 3.6 4.38a4.52 4.52 0 0 1-2.03.08 4.51 4.51 0 0 0 4.2 3.13A9.05 9.05 0 0 1 2 19.54 12.78 12.78 0 0 0 8.29 21c7.55 0 11.68-6.26 11.68-11.68 0-.18 0-.35-.01-.53A8.18 8.18 0 0 0 23 3z"/>
-    </svg>
-  `;
+  // PROFILE.url points at X, so only fall back to it when it is a real external site.
+  const profileHost = getHostLabel(PROFILE?.url || "");
+  const isExternalProfileUrl = profileHost && !/(^|\.)(x|twitter)\.com$/i.test(profileHost);
+  const websiteUrl = PROFILE_DETAILS.websiteUrl || (isExternalProfileUrl ? PROFILE.url : "");
+
+  const stats = [
+    ALL_POSTS.length ? { value: ALL_POSTS.length, label: ALL_POSTS.length === 1 ? "post" : "posts" } : null,
+    ALL_MEDIA_ITEMS.length
+      ? {
+          value: ALL_MEDIA_ITEMS.length,
+          label: ALL_MEDIA_ITEMS.length === 1 ? "piece" : "pieces",
+        }
+      : null,
+  ].filter(Boolean);
+
+  const links = [
+    websiteUrl
+      ? {
+          url: websiteUrl,
+          label: PROFILE_DETAILS.websiteLabel || "Personal website",
+          icon: POPOVER_ICONS.globe,
+        }
+      : null,
+    sourceCodeUrl ? { url: sourceCodeUrl, label: "Source code", icon: POPOVER_ICONS.code } : null,
+  ].filter(Boolean);
 
   infoPopoverEl.innerHTML = `
     <div class="info-popover-header">
       <div class="info-left">
-        <img class="info-avatar" src="${avatar}" alt="${displayName} avatar">
+        <span class="info-avatar-ring">
+          <img class="info-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(displayName)} avatar">
+        </span>
         <div class="info-header-body">
-          <div class="info-name">${displayName}</div>
-          <a class="info-handle" href="${twitterUrl}" target="_blank" rel="noopener">@${handle}</a>
+          <h2 class="info-name">${escapeHtml(displayName)}</h2>
+          <a class="info-handle" href="${escapeHtml(twitterUrl)}" target="_blank" rel="noopener noreferrer">@${escapeHtml(handle)}</a>
         </div>
       </div>
-      <a class="info-twitter-link" href="${twitterUrl}" target="_blank" rel="noopener" aria-label="View on X">${twitterSvg}</a>
+      <a class="info-twitter-link" href="${escapeHtml(twitterUrl)}" target="_blank" rel="noopener noreferrer" aria-label="View on X">${POPOVER_ICONS.x}</a>
     </div>
-    <div class="info-divider"></div>
-    <p class="info-bio">${bio}</p>
-    <div class="info-divider"></div>
-    <div class="info-actions">
-      ${websiteUrl ? `<a class="info-link" href="${websiteUrl}" target="_blank" rel="noopener">${PROFILE_DETAILS.websiteLabel || "Personal website"}</a>` : ""}
-      ${sourceCodeUrl ? `<a class="info-link" href="${sourceCodeUrl}" target="_blank" rel="noopener">Source code</a>` : ""}
-    </div>
+    ${bio ? `<p class="info-bio">${escapeHtml(bio)}</p><div class="info-divider"></div>` : ""}
+    ${
+      stats.length
+        ? `<div class="info-stats">${stats
+            .map(
+              (stat) =>
+                `<div class="info-stat"><span class="info-stat-value">${formatCount(stat.value, "", "")}</span><span class="info-stat-label">${stat.label}</span></div>`
+            )
+            .join("")}</div>`
+        : ""
+    }
+    ${
+      links.length
+        ? `<div class="info-actions">${links.map(renderInfoLink).join("")}</div>`
+        : ""
+    }
   `;
 };
 
 const positionInfoPopoverHandler = (buttonEl) => () => positionInfoPopover(buttonEl);
 
-const closeInfoPopover = () => {
+let infoPopoverTrigger = null;
+
+const setInfoPopoverState = (isVisible) => {
+  infoPopoverTrigger?.setAttribute("aria-expanded", String(isVisible));
+};
+
+const closeInfoPopover = ({ restoreFocus = false } = {}) => {
   if (!infoPopoverEl) return;
   infoPopoverEl.classList.remove("visible");
+  setInfoPopoverState(false);
   document.removeEventListener("click", onDocumentClickCloseInfo);
   window.removeEventListener("keydown", onDocumentKeyDownCloseInfo);
   window.removeEventListener("resize", infoPopoverResizeHandler);
+  infoPopoverResizeHandler = null;
+  if (restoreFocus) infoPopoverTrigger?.focus();
 };
 
 let infoPopoverResizeHandler = null;
 
 const toggleInfoPopover = (buttonEl) => {
   if (!infoPopoverEl) createInfoPopover();
-  const isVisible = infoPopoverEl.classList.toggle("visible");
-  renderInfoPopover();
-  if (isVisible) {
-    positionInfoPopover(buttonEl);
-    document.addEventListener("click", onDocumentClickCloseInfo);
-    window.addEventListener("keydown", onDocumentKeyDownCloseInfo);
-    infoPopoverResizeHandler = positionInfoPopoverHandler(buttonEl);
-    window.addEventListener("resize", infoPopoverResizeHandler);
-  } else {
-    document.removeEventListener("click", onDocumentClickCloseInfo);
-    window.removeEventListener("keydown", onDocumentKeyDownCloseInfo);
-    if (infoPopoverResizeHandler) {
-      window.removeEventListener("resize", infoPopoverResizeHandler);
-      infoPopoverResizeHandler = null;
-    }
+  infoPopoverTrigger = buttonEl;
+
+  if (infoPopoverEl.classList.contains("visible")) {
+    closeInfoPopover();
+    return;
   }
+
+  // Paint the content while hidden, then flip to visible so the staggered reveal plays.
+  renderInfoPopover();
+  infoPopoverEl.getBoundingClientRect();
+  infoPopoverEl.classList.add("visible");
+  setInfoPopoverState(true);
+
+  positionInfoPopover(buttonEl);
+  document.addEventListener("click", onDocumentClickCloseInfo);
+  window.addEventListener("keydown", onDocumentKeyDownCloseInfo);
+  infoPopoverResizeHandler = positionInfoPopoverHandler(buttonEl);
+  window.addEventListener("resize", infoPopoverResizeHandler);
 };
 
 const onDocumentClickCloseInfo = (event) => {
@@ -1328,7 +1444,7 @@ const onDocumentClickCloseInfo = (event) => {
 
 const onDocumentKeyDownCloseInfo = (event) => {
   if (event.key === "Escape") {
-    closeInfoPopover();
+    closeInfoPopover({ restoreFocus: true });
   }
 };
 
@@ -1342,15 +1458,18 @@ const createProfileHeader = () => {
   header.className = "profile-header";
   header.type = "button";
   header.title = "Profile info";
+  header.setAttribute("aria-haspopup", "dialog");
+  header.setAttribute("aria-expanded", "false");
+  header.setAttribute("aria-controls", "info-popover");
 
   const handle = CONFIG?.handle || PROFILE.handle || PROFILE.name;
   const avatar = PROFILE?.avatar || "";
 
   header.innerHTML = `
-    <img class="profile-avatar" src="${avatar}" alt="${handle} avatar">
-    <span class="profile-handle">@${handle}</span>
+    <img class="profile-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(handle)} avatar">
+    <span class="profile-handle">@${escapeHtml(handle)}</span>
     <span class="profile-info-icon" aria-hidden="true">
-      <img src="assets/arrow-down.svg" alt="Info" width="16" height="16">
+      <img src="assets/arrow-down.svg" alt="" width="16" height="16">
     </span>
   `;
 
