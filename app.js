@@ -1334,14 +1334,17 @@ const renderInfoPopover = () => {
   const isExternalProfileUrl = profileHost && !/(^|\.)(x|twitter)\.com$/i.test(profileHost);
   const websiteUrl = PROFILE_DETAILS.websiteUrl || (isExternalProfileUrl ? PROFILE.url : "");
 
+  // Reflects what a visitor actually sees, so hidden posts and media are excluded.
+  // This ignores editMode on purpose: those items are dimmed but still unpublished.
+  const visibleItems = ALL_MEDIA_ITEMS.filter((item) => !isMediaHidden(item));
+  // Videos are the only type the app renders as <video>; photos and animated
+  // gifs both fall back to a plain <img>.
+  const videoCount = visibleItems.filter((item) => item.image.type === "video").length;
+  const imageCount = visibleItems.length - videoCount;
+
   const stats = [
-    ALL_POSTS.length ? { value: ALL_POSTS.length, label: ALL_POSTS.length === 1 ? "post" : "posts" } : null,
-    ALL_MEDIA_ITEMS.length
-      ? {
-          value: ALL_MEDIA_ITEMS.length,
-          label: ALL_MEDIA_ITEMS.length === 1 ? "piece" : "pieces",
-        }
-      : null,
+    imageCount ? { value: imageCount, label: imageCount === 1 ? "image" : "images" } : null,
+    videoCount ? { value: videoCount, label: videoCount === 1 ? "video" : "videos" } : null,
   ].filter(Boolean);
 
   const links = [
