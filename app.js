@@ -1227,27 +1227,14 @@ const POPOVER_GAP = 12;
 const POPOVER_MARGIN = 12;
 const POPOVER_CENTER_MAX_WIDTH = 620;
 
-const POPOVER_ICONS = {
-  x: `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53A4.48 4.48 0 0 0 16.62 3c-2.49 0-4.5 2-4.5 4.5 0 .35.04.7.11 1.04A12.8 12.8 0 0 1 3 4.79a4.5 4.5 0 0 0 1.39 6A4.41 4.41 0 0 1 2.8 10v.06c0 2.17 1.54 3.98 3.6 4.38a4.52 4.52 0 0 1-2.03.08 4.51 4.51 0 0 0 4.2 3.13A9.05 9.05 0 0 1 2 19.54 12.78 12.78 0 0 0 8.29 21c7.55 0 11.68-6.26 11.68-11.68 0-.18 0-.35-.01-.53A8.18 8.18 0 0 0 23 3z"/>
-    </svg>
-  `,
-  globe: `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18"/>
-    </svg>
-  `,
-  code: `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="m9 8-5 4 5 4"/><path d="m15 8 5 4-5 4"/><path d="m13.5 5-3 14"/>
-    </svg>
-  `,
-  arrow: `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M7 17 17 7"/><path d="M9 7h8v8"/>
-    </svg>
-  `,
+// All popover icons load via <img>, so they cannot inherit CSS `color` the way an
+// inline SVG could. These files render black and get flipped with a filter on
+// dark chrome instead (see the [data-theme="dark"] rule in style.css).
+const POPOVER_ASSETS = {
+  x: "assets/x.svg",
+  arrowUpRight: "assets/arrow-up-right.svg",
+  globe: "assets/globe.svg",
+  code: "assets/code.svg",
 };
 
 const escapeHtml = (value) =>
@@ -1322,12 +1309,12 @@ const renderInfoLink = ({ url, label, icon }) => {
   const host = getHostLabel(url);
   return `
     <a class="info-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">
-      <span class="info-link-icon">${icon}</span>
+      <span class="info-link-icon"><img src="${escapeHtml(icon)}" alt="" width="16" height="16"></span>
       <span class="info-link-body">
         <span class="info-link-label">${escapeHtml(label)}</span>
         ${host ? `<span class="info-link-host">${escapeHtml(host)}</span>` : ""}
       </span>
-      <span class="info-link-arrow">${POPOVER_ICONS.arrow}</span>
+      <span class="info-link-arrow"><img src="${POPOVER_ASSETS.arrowUpRight}" alt="" width="15" height="15"></span>
     </a>
   `;
 };
@@ -1362,10 +1349,12 @@ const renderInfoPopover = () => {
       ? {
           url: websiteUrl,
           label: PROFILE_DETAILS.websiteLabel || "Personal website",
-          icon: POPOVER_ICONS.globe,
+          icon: POPOVER_ASSETS.globe,
         }
       : null,
-    sourceCodeUrl ? { url: sourceCodeUrl, label: "Source code", icon: POPOVER_ICONS.code } : null,
+    sourceCodeUrl
+      ? { url: sourceCodeUrl, label: "Source code", icon: POPOVER_ASSETS.code }
+      : null,
   ].filter(Boolean);
 
   infoPopoverEl.innerHTML = `
@@ -1379,7 +1368,7 @@ const renderInfoPopover = () => {
           <a class="info-handle" href="${escapeHtml(twitterUrl)}" target="_blank" rel="noopener noreferrer">@${escapeHtml(handle)}</a>
         </div>
       </div>
-      <a class="info-twitter-link" href="${escapeHtml(twitterUrl)}" target="_blank" rel="noopener noreferrer" aria-label="View on X">${POPOVER_ICONS.x}</a>
+      <a class="info-twitter-link" href="${escapeHtml(twitterUrl)}" target="_blank" rel="noopener noreferrer" aria-label="View on X"><img src="${POPOVER_ASSETS.x}" alt="" width="18" height="18"></a>
     </div>
     ${bio ? `<p class="info-bio">${escapeHtml(bio)}</p><div class="info-divider"></div>` : ""}
     ${

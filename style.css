@@ -285,7 +285,7 @@ body.lightbox-open .top-nav {
 
 .profile-info-icon img,
 .toolbar-btn img,
-.info-twitter-link svg {
+.info-twitter-link :is(svg, img) {
   width: 18px;
   height: 18px;
 }
@@ -338,7 +338,7 @@ body.lightbox-open .top-nav {
 }
 
 /* Icons ship as black SVGs, so they need flipping on the dark chrome. */
-[data-theme="dark"] :is(.toolbar-btn, .profile-info-icon) img {
+[data-theme="dark"] :is(.toolbar-btn, .profile-info-icon, .info-link-icon, .info-link-arrow, .info-twitter-link) img {
   filter: invert(1);
 }
 
@@ -619,9 +619,14 @@ body.lightbox-open .top-nav {
     background var(--transition-fast);
 }
 
-.info-link-icon svg {
+.info-link-icon :is(svg, img) {
   width: 16px;
   height: 16px;
+}
+
+.info-link-icon img {
+  opacity: 0.7;
+  transition: opacity var(--transition-fast);
 }
 
 .info-link-body {
@@ -656,12 +661,17 @@ body.lightbox-open .top-nav {
   color: var(--popover-muted);
   place-items: center;
   transform: translate(-2px, 2px);
-  transition: color var(--transition-fast), transform var(--transition-fast);
+  transition: transform var(--transition-fast);
 }
 
-.info-link-arrow svg {
+.info-link-arrow :is(svg, img) {
   width: 15px;
   height: 15px;
+}
+
+.info-link-arrow img {
+  opacity: 0.55;
+  transition: opacity var(--transition-fast);
 }
 
 #info-popover::before,
@@ -869,9 +879,16 @@ body.lightbox-open .top-nav {
     color: var(--popover-text);
   }
 
+  .info-link:hover .info-link-icon img {
+    opacity: 1;
+  }
+
   .info-link:hover .info-link-arrow {
-    color: var(--popover-text);
     transform: translate(1px, 1px);
+  }
+
+  .info-link:hover .info-link-arrow img {
+    opacity: 1;
   }
 
   .info-avatar-ring:hover {
