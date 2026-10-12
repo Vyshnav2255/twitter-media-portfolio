@@ -15,10 +15,15 @@ textarea {
   --font-sans: "Akt", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --bg: #0a0a0a;
   --text: #fff;
-  --control-bg: #f0f0f0;
-  --control-text: #1b1c1d;
-  --control-text-muted: rgb(0 0 0 / 35%);
-  --control-hover: #e4e4e4;
+  --control-bg: rgb(22 22 26 / 62%);
+  --control-border: rgb(255 255 255 / 10%);
+  --control-text: #f5f5f7;
+  --control-text-muted: rgb(245 245 247 / 55%);
+  --control-hover: rgb(255 255 255 / 10%);
+  --control-active: rgb(255 255 255 / 15%);
+  --control-ring: rgb(255 255 255 / 55%);
+  --control-shadow: 0 12px 32px rgb(0 0 0 / 45%), 0 2px 8px rgb(0 0 0 / 30%),
+    inset 0 1px 0 rgb(255 255 255 / 12%);
   --popover-bg: rgb(24 24 27 / 72%);
   --popover-text: #f7f7f8;
   --popover-body: rgb(247 247 248 / 72%);
@@ -40,10 +45,15 @@ textarea {
 [data-theme="light"] {
   --bg: #f5f5f5;
   --text: #111;
-  --control-bg: #1b1c1d;
-  --control-text: #f0f0f0;
-  --control-text-muted: rgb(255 255 255 / 35%);
-  --control-hover: #2a2a2a;
+  --control-bg: rgb(255 255 255 / 62%);
+  --control-border: rgb(20 20 26 / 10%);
+  --control-text: #14141a;
+  --control-text-muted: rgb(20 20 26 / 45%);
+  --control-hover: rgb(20 20 26 / 6%);
+  --control-active: rgb(20 20 26 / 10%);
+  --control-ring: rgb(20 20 26 / 30%);
+  --control-shadow: 0 12px 32px rgb(15 23 42 / 14%), 0 2px 8px rgb(15 23 42 / 6%),
+    inset 0 1px 0 rgb(255 255 255 / 85%);
   --popover-bg: rgb(255 255 255 / 76%);
   --popover-text: #14141a;
   --popover-body: rgb(20 20 26 / 72%);
@@ -179,20 +189,36 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
 /* Navigation */
 .top-nav {
   position: fixed;
-  top: 24px;
+  top: 22px;
   left: 50%;
   z-index: 50;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   min-height: 48px;
   max-width: calc(100vw - 32px);
-  padding: 4px;
+  padding: 5px;
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-pill);
   background: var(--control-bg);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 22%), 0 2px 6px rgb(0 0 0 / 12%);
+  box-shadow: var(--control-shadow);
+  backdrop-filter: blur(28px) saturate(180%);
   transform: translateX(-50%);
-  transition: opacity var(--transition-base);
+  transition: opacity var(--transition-base), background var(--transition-base),
+    border-color var(--transition-base);
+}
+
+/* Sheen across the top edge, the way frosted chrome catches light. */
+.top-nav::before {
+  position: absolute;
+  top: 0;
+  right: 12%;
+  left: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 35%), transparent);
+  content: "";
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 body.lightbox-open .top-nav {
@@ -249,7 +275,12 @@ body.lightbox-open .top-nav {
 }
 
 .profile-header[aria-expanded="true"] .profile-avatar {
-  box-shadow: 0 0 0 2px var(--control-bg), 0 0 0 3.5px rgb(148 163 184 / 65%);
+  box-shadow: 0 0 0 2px var(--control-ring);
+}
+
+.profile-info-icon img {
+  opacity: 0.55;
+  transition: opacity var(--transition-fast);
 }
 
 .profile-info-icon img,
@@ -281,16 +312,23 @@ body.lightbox-open .top-nav {
   background: transparent;
   color: var(--control-text-muted);
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast),
+    box-shadow var(--transition-fast), transform var(--transition-fast);
 }
 
+/* Active chip reads as a raised glass tile. */
 .toolbar-btn.active {
-  background: var(--control-hover);
+  background: var(--control-active);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%), 0 1px 3px rgb(0 0 0 / 20%);
   color: var(--control-text);
 }
 
+.toolbar-btn:active {
+  transform: scale(0.94);
+}
+
 .toolbar-btn img {
-  opacity: 0.35;
+  opacity: 0.5;
   transition: opacity var(--transition-fast);
 }
 
@@ -299,20 +337,28 @@ body.lightbox-open .top-nav {
   height: 18px;
 }
 
-[data-theme="light"] :is(.toolbar-btn, .profile-info-icon) img {
+/* Icons ship as black SVGs, so they need flipping on the dark chrome. */
+[data-theme="dark"] :is(.toolbar-btn, .profile-info-icon) img {
   filter: invert(1);
 }
 
 .toolbar-btn.active img {
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
 .nav-divider {
   width: 1px;
-  height: 18px;
-  margin: 0 2px;
-  background: var(--control-text-muted);
-  opacity: 0.45;
+  height: 20px;
+  flex-shrink: 0;
+  margin: 0 4px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--control-text-muted) 35%,
+    var(--control-text-muted) 65%,
+    transparent
+  );
+  opacity: 0.5;
 }
 
 :is(.profile-header, .toolbar-btn):focus-visible,
@@ -786,6 +832,10 @@ body.lightbox-open .top-nav {
 
   .profile-header:hover .profile-info-icon {
     color: var(--control-text);
+  }
+
+  .profile-header:hover .profile-info-icon img {
+    opacity: 0.95;
   }
 
   .profile-header:hover .profile-avatar {
