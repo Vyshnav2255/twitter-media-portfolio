@@ -463,9 +463,55 @@ const releaseElement = (el) => {
   el.style.display = "none";
   el.style.visibility = "";
   el.classList.remove("hidden-post");
+  // Pool elements are recycled, so intro state must never leak onto the next tile.
+  el.classList.remove("is-intro-pending");
+  el.style.transitionDelay = "";
   const badge = el.querySelector(".grid-item-video-badge");
   if (badge) badge.style.display = "none";
   freePool.push(el);
+};
+
+// --- Intro animation (first paint only) ---
+
+const INTRO_STAGGER_MS = 16;
+const INTRO_STAGGER_CAP = 36;
+const INTRO_IMAGE_WAIT_MS = 650;
+
+let hasPlayedIntro = false;
+
+const prefersReducedMotion = () =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Waiting for the first screenful of images turns what would be a flash of empty
+// tiles into an actual reveal. The cap keeps a slow connection from stalling it.
+const whenFirstImagesReady = (items) =>
+  Promise.race([
+    Promise.all(
+      items.map((el) => {
+        const img = el.querySelector("img");
+        if (!img || !img.getAttribute("src")) return Promise.resolve();
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+        return img.decode().catch(() => {});
+      })
+    ),
+    new Promise((resolve) => setTimeout(resolve, INTRO_IMAGE_WAIT_MS)),
+  ]);
+
+const playIntro = (items) => {
+  if (prefersReducedMotion()) return;
+
+  items.forEach((el, index) => {
+    el.classList.add("is-intro-pending");
+    el.style.transitionDelay = `${Math.min(index, INTRO_STAGGER_CAP) * INTRO_STAGGER_MS}ms`;
+  });
+
+  // One forced layout pins the starting state for every tile, so the single
+  // reflow below is enough to start all the transitions together.
+  void grid.offsetHeight;
+
+  requestAnimationFrame(() => {
+    items.forEach((el) => el.classList.remove("is-intro-pending"));
+  });
 };
 
 // --- Twitter image sizing ---
@@ -498,6 +544,7 @@ const renderVisibleItems = () => {
   grid.style.height = `${contentHeight}px`;
 
   const visibleThisFrame = new Set();
+  const introItems = [];
 
   for (let i = 0; i < layoutItems.length; i++) {
     const item = layoutItems[i];
@@ -563,7 +610,15 @@ const renderVisibleItems = () => {
         screenX: sx,
         screenY: sy,
       });
+
+      // Only tiles created during the very first render take part in the intro.
+      if (!hasPlayedIntro) introItems.push(el);
     }
+  }
+
+  if (!hasPlayedIntro) {
+    hasPlayedIntro = true;
+    whenFirstImagesReady(introItems).then(() => playIntro(introItems));
   }
 
   for (const [visKey, entry] of activeMap) {

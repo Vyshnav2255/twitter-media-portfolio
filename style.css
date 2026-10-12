@@ -97,10 +97,23 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
   position: absolute;
   overflow: hidden;
   border-radius: var(--radius-card);
+  /* Barely visible once the image covers it, but it stops tiles reading as
+     empty boxes while loading or during the intro. */
+  background: rgb(148 163 184 / 8%);
   backface-visibility: hidden;
   user-select: none;
   will-change: transform;
-  transition: opacity var(--transition-base), filter var(--transition-base);
+  transition: opacity 0.6s var(--ease-out-soft), scale 0.6s var(--ease-out-soft),
+    filter var(--transition-base);
+}
+
+/* Start state for the intro reveal. transition:none is essential — without it the
+   class would animate to opacity 0 instead of snapping there, so the tile never
+   reaches the hidden state before the reveal begins. */
+.grid-item.is-intro-pending {
+  opacity: 0;
+  scale: 0.9;
+  transition: none;
 }
 
 .grid-item img:not(.play-pill-icon) {
@@ -206,6 +219,21 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
   transform: translateX(-50%);
   transition: opacity var(--transition-base), background var(--transition-base),
     border-color var(--transition-base);
+  animation: nav-enter 0.7s var(--ease-out-soft);
+}
+
+@keyframes nav-enter {
+  from {
+    opacity: 0;
+    translate: 0 -14px;
+    scale: 0.94;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
 }
 
 /* Sheen across the top edge, the way frosted chrome catches light. */
@@ -937,5 +965,19 @@ body.lightbox-open .top-nav {
   .info-twitter-link {
     transition-duration: 0.01ms;
     transition-delay: 0s;
+  }
+
+  .top-nav {
+    animation: none;
+  }
+
+  .grid-item {
+    transition-duration: 0.01ms;
+    transition-delay: 0s;
+  }
+
+  .grid-item.is-intro-pending {
+    opacity: 1;
+    scale: 1;
   }
 }
