@@ -44,12 +44,37 @@ const lightboxLink = document.getElementById("lightbox-link");
 const lightboxNavHint = document.getElementById("lightbox-nav-hint");
 const backgroundMusic = document.getElementById("background-music");
 
+// Browsers block audible autoplay until the visitor has interacted with the
+// page, so a plain play() call is rejected on a cold visit. Rather than leaving
+// the track silently paused, retry on the first real gesture so the music simply
+// starts once the visitor touches anything.
+const MUSIC_UNLOCK_EVENTS = ["pointerdown", "keydown", "touchend", "scroll"];
+
+const unlockMusicOnFirstGesture = () => {
+  if (!backgroundMusic) return;
+
+  const attempt = () => {
+    if (!backgroundMusic.paused) {
+      detach();
+      return;
+    }
+    backgroundMusic.play().then(detach, () => {});
+  };
+  const detach = () => {
+    for (const name of MUSIC_UNLOCK_EVENTS) window.removeEventListener(name, attempt);
+  };
+
+  for (const name of MUSIC_UNLOCK_EVENTS) {
+    window.addEventListener(name, attempt, { passive: true });
+  }
+};
+
 if (backgroundMusic) {
   backgroundMusic.volume = 0.12;
   backgroundMusic.muted = false;
-  backgroundMusic.play().catch(() => {
-    // Browsers may block autoplay until the first user interaction.
-  });
+  backgroundMusic
+    .play()
+    .catch(() => unlockMusicOnFirstGesture());
 }
 
 const canShowEditControls = () => {
