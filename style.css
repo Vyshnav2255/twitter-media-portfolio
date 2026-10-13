@@ -15,15 +15,11 @@ textarea {
   --font-sans: "Akt", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --bg: #0a0a0a;
   --text: #fff;
-  --control-bg: rgb(22 22 26 / 62%);
-  --control-border: rgb(255 255 255 / 10%);
   --control-text: #f5f5f7;
   --control-text-muted: rgb(245 245 247 / 55%);
   --control-hover: rgb(255 255 255 / 10%);
   --control-active: rgb(255 255 255 / 15%);
   --control-ring: rgb(255 255 255 / 55%);
-  --control-shadow: 0 12px 32px rgb(0 0 0 / 45%), 0 2px 8px rgb(0 0 0 / 30%),
-    inset 0 1px 0 rgb(255 255 255 / 12%);
   --popover-bg: rgb(24 24 27 / 72%);
   --popover-text: #f7f7f8;
   --popover-body: rgb(247 247 248 / 72%);
@@ -31,29 +27,93 @@ textarea {
   --popover-border: rgb(255 255 255 / 10%);
   --popover-border-strong: rgb(255 255 255 / 16%);
   --popover-hover: rgb(255 255 255 / 9%);
-  --popover-shadow: 0 24px 70px rgb(0 0 0 / 55%), 0 2px 10px rgb(0 0 0 / 40%),
-    0 14px 44px -14px rgb(99 102 241 / 32%);
   --accent-gradient: linear-gradient(135deg, #60a5fa, #a78bfa 52%, #f472b6);
+
+  /* Liquid Glass material.
+
+     Tints, blur radii and easing are taken from amazing-glass, which measures its
+     values against SwiftUI's .glassEffect on macOS 27. Three of them corrected
+     what I had guessed at:
+       - Light glass lightens, dark glass darkens. One tint does not fit both.
+       - .glassEffect casts NO measurable shadow. Separation comes from the rim
+         light and the tint, not a drop shadow.
+       - Colour grade is more saturation and less contrast, not more of both. */
+  --glass-tint-regular: rgb(30 30 34 / 36%);
+  --glass-blur-regular: blur(10px);
+  /* Clear is the frosted variant. The popover carries body text over arbitrary
+     photography, so it takes Clear's 16px where the nav can stay on Regular's 10px. */
+  --glass-blur-clear: blur(16px);
+  --glass-grade: saturate(190%) contrast(96%);
+  --glass-sheen: rgb(255 255 255 / 5%);
+  --glass-thickness: rgb(255 255 255 / 9%);
+  --glass-thickness-fall: rgb(255 255 255 / 2%);
+  --glass-specular: rgb(255 255 255 / 34%);
+  --glass-hairline: rgb(255 255 255 / 11%);
+  --glass-underlight: rgb(0 0 0 / 22%);
+  --glass-backdrop: var(--glass-blur-regular) var(--glass-grade);
+
+  /* The lightbox is a dark context in BOTH themes. Most media here is light
+     design work, so on a light scrim it dissolves instead of popping; keeping the
+     field dark gives the preview identical separation whichever theme you are in.
+     Its controls carry their own bevel tokens rather than borrowing the page's,
+     since light-mode glass is tuned for a light page. */
+  --scrim-sheen: rgb(255 255 255 / 5%);
+  --scrim-thickness: rgb(255 255 255 / 9%);
+  --scrim-thickness-fall: rgb(255 255 255 / 2%);
+  --scrim-specular: rgb(255 255 255 / 34%);
+  --scrim-hairline: rgb(255 255 255 / 11%);
+  --scrim-underlight: rgb(0 0 0 / 22%);
+  --scrim-bg: rgb(9 9 11 / 80%);
+
+  /* Controls sit ON the scrim, so they must be far more transparent than it or
+     they read as solid chips. A light tint over the dark field is what makes
+     them look like glass catching light rather than a hole cut in the page.
+     Their backdrop already includes the scrim's own 28px frost, so this blur
+     stacks on top of it rather than replacing it — the button ends up visibly
+     frostier than the scrim immediately around it. */
+  --scrim-control-tint: rgb(255 255 255 / 12%);
+  --scrim-control-hover: rgb(255 255 255 / 20%);
+  --scrim-control-backdrop: blur(22px) var(--glass-grade);
+  --scrim-text: #f7f7f8;
+  --scrim-text-muted: rgb(247 247 248 / 72%);
   --radius-card: 12px;
   --radius-pill: 999px;
-  --ease-standard: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  /* Apple insets a sheet by the device corner, so its own radius is outer - inset. */
+  --radius-glass: 26px;
+  --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Springs approximated with linear() easing, sampled from a real spring curve. */
+  --ease-spring: linear(
+    0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%, 1.061 22.2%,
+    1.078 25.3%, 1.066 29.2%, 1.018 38.3%, 0.996 45.2%, 0.993 52.3%, 1
+  );
   --transition-fast: 0.15s var(--ease-standard);
   --transition-base: 0.25s var(--ease-standard);
 }
 
 [data-theme="light"] {
-  --bg: #f5f5f5;
+  /* Deepened from #f5f5f5. White glass on a near-white canvas has almost nothing
+     to refract and only ~5 levels of separation from the page, so the material
+     reads flat. Dropping the canvas gives the pane a tonal floor to sit on, which
+     is what the dark theme gets for free from its near-black background. */
+  --bg: #e9e9ee;
   --text: #111;
-  --control-bg: rgb(255 255 255 / 62%);
-  --control-border: rgb(20 20 26 / 10%);
+  /* Light glass lightens rather than darkens, and the specular drops to a whisper
+     so the bevel does not blow out against a bright page. */
+  --glass-tint-regular: rgb(255 255 255 / 50%);
+  --glass-sheen: rgb(255 255 255 / 40%);
+  --glass-thickness: rgb(255 255 255 / 26%);
+  --glass-thickness-fall: rgb(255 255 255 / 6%);
+  --glass-specular: rgb(255 255 255 / 92%);
+  /* Stronger than dark mode in proportion, because a light hairline on a light
+     pane is what actually draws the edge; the specular alone is invisible here. */
+  --glass-hairline: rgb(20 20 26 / 13%);
+  --glass-underlight: rgb(15 23 42 / 18%);
   --control-text: #14141a;
   --control-text-muted: rgb(20 20 26 / 45%);
   --control-hover: rgb(20 20 26 / 6%);
   --control-active: rgb(20 20 26 / 10%);
   --control-ring: rgb(20 20 26 / 30%);
-  --control-shadow: 0 12px 32px rgb(15 23 42 / 14%), 0 2px 8px rgb(15 23 42 / 6%),
-    inset 0 1px 0 rgb(255 255 255 / 85%);
   --popover-bg: rgb(255 255 255 / 76%);
   --popover-text: #14141a;
   --popover-body: rgb(20 20 26 / 72%);
@@ -61,8 +121,6 @@ textarea {
   --popover-border: rgb(20 20 26 / 9%);
   --popover-border-strong: rgb(20 20 26 / 14%);
   --popover-hover: rgb(20 20 26 / 5%);
-  --popover-shadow: 0 24px 70px rgb(15 23 42 / 18%), 0 2px 10px rgb(15 23 42 / 8%),
-    0 14px 44px -18px rgb(99 102 241 / 28%);
 }
 
 body {
@@ -162,7 +220,6 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
 
 .grid-item-hidden-overlay,
 .grid-item-video-badge,
-.profile-info-icon,
 .toolbar,
 .toolbar-group,
 .toolbar-btn,
@@ -203,16 +260,27 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
   top: 50%;
   left: 50%;
   width: 15%;
-  min-width: 28px;
+  min-width: 30px;
   max-width: 48px;
   aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 14%) 0%, rgb(255 255 255 / 0%) 52%),
+    linear-gradient(180deg, rgb(255 255 255 / 7%) 0%, rgb(255 255 255 / 1%) 100%),
+    rgb(16 16 20 / 46%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    inset 0 -1px 0 rgb(0 0 0 / 20%),
+    inset 0 0 0 0.5px rgb(255 255 255 / 16%);
+  backdrop-filter: blur(14px) saturate(170%);
   pointer-events: none;
   transform: translate(-50%, -50%);
 }
 
 .grid-item-video-badge svg {
-  width: 100%;
-  height: 100%;
+  width: 50%;
+  height: 50%;
 }
 
 /* Navigation */
@@ -227,15 +295,25 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
   min-height: 48px;
   max-width: calc(100vw - 32px);
   padding: 5px;
-  border: 1px solid var(--control-border);
+  border: 0;
   border-radius: var(--radius-pill);
-  background: var(--control-bg);
-  box-shadow: var(--control-shadow);
-  backdrop-filter: blur(28px) saturate(180%);
+  background:
+    linear-gradient(180deg, var(--glass-sheen) 0%, rgb(255 255 255 / 0%) 46%),
+    linear-gradient(180deg, var(--glass-thickness) 0%, var(--glass-thickness-fall) 100%),
+    var(--glass-tint-regular);
+  box-shadow:
+    inset 0 1px 0 var(--glass-specular),
+    inset 0 -1px 0 var(--glass-underlight),
+    inset 0 0 0 0.5px var(--glass-hairline);
+  backdrop-filter: var(--glass-backdrop);
   transform: translateX(-50%);
-  transition: opacity var(--transition-base), background var(--transition-base),
-    border-color var(--transition-base);
-  animation: nav-enter 0.7s var(--ease-out-soft);
+  transition: opacity var(--transition-base);
+  animation: nav-enter 0.7s var(--ease-spring);
+}
+
+body.lightbox-open .top-nav {
+  opacity: 0;
+  pointer-events: none;
 }
 
 @keyframes nav-enter {
@@ -250,24 +328,6 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
     translate: 0 0;
     scale: 1;
   }
-}
-
-/* Sheen across the top edge, the way frosted chrome catches light. */
-.top-nav::before {
-  position: absolute;
-  top: 0;
-  right: 12%;
-  left: 12%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 35%), transparent);
-  content: "";
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-body.lightbox-open .top-nav {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .profile-header {
@@ -363,7 +423,7 @@ body.lightbox-open .top-nav {
 /* Active chip reads as a raised glass tile. */
 .toolbar-btn.active {
   background: var(--control-active);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%), 0 1px 3px rgb(0 0 0 / 20%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
   color: var(--control-text);
 }
 
@@ -449,18 +509,28 @@ body.lightbox-open .top-nav {
   z-index: 60;
   width: min(300px, calc(100vw - 40px));
   padding: 18px 18px 16px;
-  border: 1px solid var(--popover-border);
-  border-radius: 20px;
-  background: var(--popover-bg);
-  box-shadow: var(--popover-shadow);
-  backdrop-filter: blur(28px) saturate(180%);
+  border: 0;
+  border-radius: var(--radius-glass);
+  background:
+    linear-gradient(180deg, var(--glass-sheen) 0%, rgb(255 255 255 / 0%) 46%),
+    linear-gradient(
+      180deg,
+      var(--glass-thickness) 0%,
+      var(--glass-thickness-fall) 100%
+    ),
+    var(--popover-bg);
+  box-shadow:
+    inset 0 1px 0 var(--glass-specular),
+    inset 0 -1px 0 var(--glass-underlight),
+    inset 0 0 0 0.5px var(--popover-border);
+  backdrop-filter: var(--glass-blur-clear) var(--glass-grade);
   color: var(--popover-text);
   opacity: 0;
   visibility: hidden;
   transform: translate(-50%, 6px) scale(0.96);
   transform-origin: top center;
-  transition: opacity 0.2s var(--ease-standard), transform 0.26s var(--ease-out-soft),
-    visibility 0.26s var(--ease-standard);
+  transition: opacity 0.2s var(--ease-standard), transform 0.3s var(--ease-spring),
+    visibility 0.3s var(--ease-standard);
 }
 
 .info-popover[data-placement="above"] {
@@ -760,8 +830,10 @@ body.lightbox-open .top-nav {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgb(0 0 0 / 85%);
-  backdrop-filter: blur(6px);
+  /* Same frosted language as the nav and popover. The active media sits on a
+     higher z-index sibling, so it stays sharp and outside this backdrop. */
+  background: var(--scrim-bg);
+  backdrop-filter: blur(28px) saturate(180%);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s var(--ease-standard);
@@ -777,24 +849,32 @@ body.lightbox-open .top-nav {
   top: 24px;
   right: 24px;
   z-index: 102;
-  width: 35px;
-  height: 35px;
+  width: 36px;
+  height: 36px;
   border: 0;
   border-radius: 50%;
-  background: rgb(255 255 255 / 10%);
-  backdrop-filter: blur(8px);
-  color: #fff;
+  background:
+    linear-gradient(180deg, var(--scrim-sheen) 0%, rgb(255 255 255 / 0%) 50%),
+    linear-gradient(180deg, var(--scrim-thickness) 0%, var(--scrim-thickness-fall) 100%),
+    var(--scrim-control-tint);
+  box-shadow:
+    inset 0 1px 0 var(--scrim-specular),
+    inset 0 -1px 0 var(--scrim-underlight),
+    inset 0 0 0 0.5px var(--scrim-hairline);
+  backdrop-filter: var(--scrim-control-backdrop);
+  color: var(--scrim-text);
   cursor: pointer;
   opacity: 0;
   transform: scale(0.8);
-  transition: opacity 0.3s ease, transform 0.3s ease, background var(--transition-fast);
+  transition: opacity 0.3s ease, transform 0.3s ease, background var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .lightbox-nav-hint {
   position: absolute;
   left: 50%;
   z-index: 102;
-  color: rgb(255 255 255 / 70%);
+  color: var(--scrim-text-muted);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -823,7 +903,7 @@ body.lightbox-open .top-nav {
   position: absolute;
   left: 50%;
   max-width: 640px;
-  color: #fff;
+  color: var(--scrim-text);
   text-align: center;
   transform: translateX(-50%);
 }
@@ -831,7 +911,7 @@ body.lightbox-open .top-nav {
 .lightbox-title {
   max-width: 640px;
   margin-bottom: 16px;
-  color: #fff;
+  color: var(--scrim-text);
   font-size: 16px;
   font-weight: 400;
   letter-spacing: -0.01em;
@@ -841,16 +921,25 @@ body.lightbox-open .top-nav {
 
 .lightbox-view-btn {
   display: inline-flex;
-  padding: 7px 12px;
-  border: 1px solid rgb(255 255 255 / 65%);
+  padding: 7px 13px;
+  border: 0;
   border-radius: var(--radius-pill);
-  background: transparent;
-  color: #fff;
+  background:
+    linear-gradient(180deg, var(--scrim-sheen) 0%, rgb(255 255 255 / 0%) 50%),
+    linear-gradient(180deg, var(--scrim-thickness) 0%, var(--scrim-thickness-fall) 100%),
+    var(--scrim-control-tint);
+  box-shadow:
+    inset 0 1px 0 var(--scrim-specular),
+    inset 0 -1px 0 var(--scrim-underlight),
+    inset 0 0 0 0.5px var(--scrim-hairline);
+  backdrop-filter: var(--scrim-control-backdrop);
+  color: var(--scrim-text);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
   text-decoration: none;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .grid-item.lightbox-active {
@@ -940,12 +1029,12 @@ body.lightbox-open .top-nav {
   }
 
   .lightbox-close:hover {
-    background: rgb(255 255 255 / 20%);
+    background: var(--scrim-control-hover);
   }
 
   .lightbox-view-btn:hover {
-    border-color: #fff;
-    background: rgb(255 255 255 / 14%);
+    background: var(--scrim-control-hover);
+    transform: translateY(-1px);
   }
 }
 
