@@ -493,8 +493,12 @@ const watchImageLoad = (img) => {
 
 // --- Intro animation (first paint only) ---
 
-const INTRO_STAGGER_MS = 16;
-const INTRO_STAGGER_CAP = 36;
+// Tiles arrive in column-major layout order, so staggering by array position
+// makes the wave snake down the leftmost column. Delays are derived from
+// on-screen distance instead, which reads as the grid blooming outward from
+// wherever the visitor is actually looking.
+const INTRO_STEP_MS = 34;
+const INTRO_MAX_DELAY_MS = 340;
 const INTRO_IMAGE_WAIT_MS = 650;
 
 let hasPlayedIntro = false;
@@ -507,7 +511,7 @@ const prefersReducedMotion = () =>
 const whenFirstImagesReady = (items) =>
   Promise.race([
     Promise.all(
-      items.map((el) => {
+      items.map(({ el }) => {
         const img = el.querySelector("img");
         if (!img || !img.getAttribute("src")) return Promise.resolve();
         if (img.complete && img.naturalWidth > 0) return Promise.resolve();
@@ -517,12 +521,25 @@ const whenFirstImagesReady = (items) =>
     new Promise((resolve) => setTimeout(resolve, INTRO_IMAGE_WAIT_MS)),
   ]);
 
+// Reveals column by column, top to bottom, then across. Sorting on the tile's
+// own x/y keeps this correct regardless of how the layout built its item list.
+// A fixed step keeps the cascade even and caps the total so a dense grid cannot
+// drag the reveal out.
+const getIntroDelays = (items) => {
+  const ordered = [...items].sort((a, b) => a.cx - b.cx || a.cy - b.cy);
+  return new Map(
+    ordered.map((item, index) => [item, Math.min(index * INTRO_STEP_MS, INTRO_MAX_DELAY_MS)])
+  );
+};
+
 const playIntro = (items) => {
   if (prefersReducedMotion()) return;
 
-  items.forEach((el, index) => {
-    el.classList.add("is-intro-pending");
-    el.style.transitionDelay = `${Math.min(index, INTRO_STAGGER_CAP) * INTRO_STAGGER_MS}ms`;
+  const delays = getIntroDelays(items);
+
+  items.forEach((item) => {
+    item.el.classList.add("is-intro-pending");
+    item.el.style.transitionDelay = `${delays.get(item)}ms`;
   });
 
   // One forced layout pins the starting state for every tile, so the single
@@ -530,10 +547,10 @@ const playIntro = (items) => {
   void grid.offsetHeight;
 
   const clear = () =>
-    items.forEach((el) => {
-      el.classList.remove("is-intro-pending");
+    items.forEach((item) => {
+      item.el.classList.remove("is-intro-pending");
       // Drop the stagger delay too, so it can't linger on a later opacity change.
-      el.style.transitionDelay = "";
+      item.el.style.transitionDelay = "";
     });
 
   requestAnimationFrame(clear);
@@ -642,8 +659,12 @@ const renderVisibleItems = () => {
         screenY: sy,
       });
 
-      // Only tiles created during the very first render take part in the intro.
-      if (!hasPlayedIntro) introItems.push(el);
+      // Only tiles created during the very first render, and only those actually
+      // on screen, take part in the intro. Buffered tiles below the fold would
+      // otherwise drive the delay spread without the visitor ever seeing it.
+      if (!hasPlayedIntro && sy + item.h > scrollTop && sy < scrollTop + vh) {
+        introItems.push({ el, cx: sx + item.w / 2, cy: sy + item.h / 2 });
+      }
     }
   }
 

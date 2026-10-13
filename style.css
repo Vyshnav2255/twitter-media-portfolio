@@ -104,16 +104,19 @@ body:is(.layout-grid, .layout-feed) #viewport.grabbing {
   backface-visibility: hidden;
   user-select: none;
   will-change: transform;
-  transition: opacity 0.6s var(--ease-out-soft), scale 0.6s var(--ease-out-soft),
-    filter var(--transition-base);
+  transition: opacity 0.55s var(--ease-out-soft), scale 0.55s var(--ease-out-soft),
+    translate 0.55s var(--ease-out-soft), filter 0.55s var(--ease-out-soft);
 }
 
 /* Start state for the intro reveal. transition:none is essential — without it the
-   class would animate to opacity 0 instead of snapping there, so the tile never
-   reaches the hidden state before the reveal begins. */
+   class would animate to the hidden state instead of snapping there, so tiles would
+   never reach it before the reveal begins. translate and scale are the independent
+   properties, which compose with the positioning transform already on the tile. */
 .grid-item.is-intro-pending {
   opacity: 0;
-  scale: 0.9;
+  scale: 0.92;
+  translate: 0 16px;
+  filter: blur(5px);
   transition: none;
 }
 
@@ -998,5 +1001,7 @@ body.lightbox-open .top-nav {
   .grid-item.is-intro-pending {
     opacity: 1;
     scale: 1;
+    translate: none;
+    filter: none;
   }
 }
