@@ -870,6 +870,52 @@ body.lightbox-open .top-nav {
     border-color var(--transition-fast);
 }
 
+.lightbox-nav-btn {
+  position: absolute;
+  top: 50%;
+  z-index: 102;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background:
+    linear-gradient(180deg, var(--scrim-sheen) 0%, rgb(255 255 255 / 0%) 50%),
+    linear-gradient(180deg, var(--scrim-thickness) 0%, var(--scrim-thickness-fall) 100%),
+    var(--scrim-control-tint);
+  box-shadow:
+    inset 0 1px 0 var(--scrim-specular),
+    inset 0 -1px 0 var(--scrim-underlight),
+    inset 0 0 0 0.5px var(--scrim-hairline);
+  backdrop-filter: var(--scrim-control-backdrop);
+  color: var(--scrim-text);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-50%) scale(0.8);
+  transition: opacity 0.3s var(--ease-standard), transform 0.3s var(--ease-standard),
+    background var(--transition-fast), color var(--transition-fast);
+}
+
+.lightbox-nav-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+#lightbox-prev {
+  left: 24px;
+}
+
+#lightbox-next {
+  right: 24px;
+}
+
+/* Swipe stays the only affordance on touch, so the buttons would just get in the way. */
+@media (hover: none), (pointer: coarse) {
+  .lightbox-nav-btn {
+    display: none;
+  }
+}
+
 .lightbox-nav-hint {
   position: absolute;
   left: 50%;
@@ -888,6 +934,14 @@ body.lightbox-open .top-nav {
 .lightbox-overlay.active :is(.lightbox-close, .lightbox-nav-hint) {
   opacity: 1;
   transform: translate(-50%, 0);
+  transition-delay: 0.2s;
+}
+
+/* Separate from the rule above: the hint is centred with translateX, the nav
+   buttons are centred with translateY, so they cannot share one transform. */
+.lightbox-overlay.active .lightbox-nav-btn {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
   transition-delay: 0.2s;
 }
 
@@ -1030,6 +1084,11 @@ body.lightbox-open .top-nav {
 
   .lightbox-close:hover {
     background: var(--scrim-control-hover);
+  }
+
+  .lightbox-nav-btn:hover {
+    background: var(--scrim-control-hover);
+    transform: translateY(-50%) scale(1.06);
   }
 
   .lightbox-view-btn:hover {

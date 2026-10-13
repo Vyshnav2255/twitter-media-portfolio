@@ -41,6 +41,8 @@ const overlay = document.getElementById("lightbox-overlay");
 const lightboxClose = document.getElementById("lightbox-close");
 const lightboxTitle = document.getElementById("lightbox-title");
 const lightboxLink = document.getElementById("lightbox-link");
+const lightboxPrev = document.getElementById("lightbox-prev");
+const lightboxNext = document.getElementById("lightbox-next");
 const lightboxNavHint = document.getElementById("lightbox-nav-hint");
 const backgroundMusic = document.getElementById("background-music");
 
@@ -1756,6 +1758,12 @@ const init = async () => {
       navigateLightbox(e.key === "ArrowLeft" ? -1 : 1);
     }
   });
+
+  // Desktop-only prev/next. These route through navigateLightbox exactly like the
+  // arrow keys, so rapid clicks land in the same animation queue rather than
+  // fighting it. Swipe and keyboard stay the only affordance on touch devices.
+  lightboxPrev?.addEventListener("click", () => navigateLightbox(-1));
+  lightboxNext?.addEventListener("click", () => navigateLightbox(1));
 
 };
 
