@@ -370,8 +370,15 @@ body.lightbox-open .top-nav {
 }
 
 .profile-info-icon {
+  display: grid;
+  /* Exactly the glyph's box. Left to flow, the span picks up a line-height
+     taller than the 18px image and the image sits 2px low, so the rotation
+     pivots off-centre and the chevron lurches as it spins. */
+  width: 18px;
+  height: 18px;
+  place-items: center;
   color: var(--control-text-muted);
-  transition: transform var(--transition-base), color var(--transition-fast);
+  transition: transform 0.3s var(--ease-spring), color var(--transition-fast);
 }
 
 .profile-header[aria-expanded="true"] .profile-info-icon {

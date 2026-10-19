@@ -1381,6 +1381,8 @@ const createInfoToggle = () => {
 const POPOVER_GAP = 12;
 const POPOVER_MARGIN = 12;
 const POPOVER_CENTER_MAX_WIDTH = 620;
+// Keeps the arrow clear of the card's 26px corner radius.
+const POPOVER_ARROW_INSET = 26;
 
 // All popover icons load via <img>, so they cannot inherit CSS `color` the way an
 // inline SVG could. These files render black and get flipped with a filter on
@@ -1411,7 +1413,11 @@ const formatCount = (count) => count.toLocaleString();
 const positionInfoPopover = (buttonEl) => {
   if (!infoPopoverEl || !buttonEl) return;
   const anchor = buttonEl.getBoundingClientRect();
-  const popover = infoPopoverEl.getBoundingClientRect();
+  // offsetWidth/Height are layout sizes, so they ignore the opening scale(0.96)
+  // that getBoundingClientRect would fold in while the card is still animating.
+  const popoverWidth = infoPopoverEl.offsetWidth;
+  const popoverHeight = infoPopoverEl.offsetHeight;
+
   const anchorCenter = anchor.left + anchor.width / 2;
 
   // Narrow viewports centre the card instead of anchoring it, since the trigger
@@ -1419,7 +1425,7 @@ const positionInfoPopover = (buttonEl) => {
   const centerOnViewport = window.innerWidth <= POPOVER_CENTER_MAX_WIDTH;
 
   // Keep the card on screen by sliding it instead of letting it hang off the edge.
-  const halfWidth = popover.width / 2;
+  const halfWidth = popoverWidth / 2;
   const left = centerOnViewport
     ? window.innerWidth / 2
     : Math.min(
@@ -1429,18 +1435,24 @@ const positionInfoPopover = (buttonEl) => {
 
   let top = anchor.bottom + POPOVER_GAP;
   let placement = "below";
-  if (top + popover.height > window.innerHeight - POPOVER_MARGIN) {
-    top = anchor.top - popover.height - POPOVER_GAP;
+  if (top + popoverHeight > window.innerHeight - POPOVER_MARGIN) {
+    top = anchor.top - popoverHeight - POPOVER_GAP;
     placement = "above";
   }
   top = Math.max(
     POPOVER_MARGIN,
-    Math.min(top, window.innerHeight - popover.height - POPOVER_MARGIN)
+    Math.min(top, window.innerHeight - popoverHeight - POPOVER_MARGIN)
   );
 
-  // Arrow follows the trigger, clamped so it never points at the rounded corners.
-  const arrowLimit = Math.max(popover.width / 2 - 18, 18);
-  const arrowOffset = Math.min(Math.max(anchorCenter - left, -arrowLimit + 18), arrowLimit);
+  // `left` is the card's centre; the CSS centres it with translateX(-50%).
+  // The arrow is positioned from the card's left edge, so rebase before
+  // measuring or it lands on the left edge whenever the two coincide.
+  const cardLeft = left - halfWidth;
+  const inset = Math.min(halfWidth, POPOVER_ARROW_INSET);
+  const arrowOffset = Math.min(
+    Math.max(anchorCenter - cardLeft, inset),
+    popoverWidth - inset
+  );
 
   infoPopoverEl.dataset.placement = placement;
   infoPopoverEl.style.left = `${Math.round(left)}px`;
