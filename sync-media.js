@@ -243,7 +243,11 @@ function fetchGraphQL(queryId, operation, variables, fieldToggles) {
   let result;
   try {
     result = execFileSync("curl", [
-      "-s", "-S", "--max-time", "30",
+      "-s", "-S", "--fail-with-body",
+      "--connect-timeout", "15", "--max-time", "60",
+      // curl retries timeouts, HTTP 408/429 and transient server errors.
+      // Keep retries bounded so an unavailable API eventually fails clearly.
+      "--retry", "3", "--retry-max-time", "240",
       "-H", `authorization: Bearer ${X_PUBLIC_BEARER}`,
       "-H", `x-csrf-token: ${csrfToken}`,
       "-H", "x-twitter-auth-type: OAuth2Session",
@@ -257,12 +261,17 @@ function fetchGraphQL(queryId, operation, variables, fieldToggles) {
     throw new Error(`GraphQL request failed: ${text.trim() || error.message}`);
   }
 
+  let json;
   try {
-    return JSON.parse(result);
+    json = JSON.parse(result);
   } catch (error) {
     const trimmed = String(result || "").trim();
     throw new Error(`Invalid JSON from GraphQL: ${trimmed.slice(0, 180)}`);
   }
+  if (json.errors?.length) {
+    throw new Error(`${operation} failed: ${json.errors.map((error) => error.message || `code ${error.code}`).join("; ")}`);
+  }
+  return json;
 }
 
 // --- Parse tweet ---
@@ -365,7 +374,6 @@ async function main() {
   const allTweets = [];
   let cursor = null;
   let page = 0;
-  let syncFailed = false;
 
   while (true) {
     page++;
@@ -388,13 +396,14 @@ async function main() {
         withArticlePlainText: false,
       });
     } catch (e) {
-      console.error(`\n  Error fetching page ${page}: ${e.message}`);
-      syncFailed = true;
-      break;
+      throw new Error(`Sync failed on page ${page} after fetching ${allTweets.length} media posts: ${e.message}. Existing portfolio data was not replaced; video cleanup was skipped.`);
     }
 
     const instructions = json?.data?.user?.result?.timeline_v2?.timeline?.instructions
-      ?? json?.data?.user?.result?.timeline?.timeline?.instructions ?? [];
+      ?? json?.data?.user?.result?.timeline?.timeline?.instructions;
+    if (!Array.isArray(instructions)) {
+      throw new Error(`No media timeline in the response for page ${page}. Existing portfolio data was not replaced; video cleanup was skipped.`);
+    }
     let newTweets = 0;
     let nextCursor = null;
 
@@ -464,8 +473,8 @@ async function main() {
     cursor = nextCursor;
   }
 
-  if (syncFailed || allTweets.length === 0) {
-    throw new Error("Sync returned no media posts. Keeping the existing portfolio data and video cache unchanged.");
+  if (allTweets.length === 0) {
+    throw new Error("Sync returned no media posts. Existing portfolio data was not replaced; video cleanup was skipped.");
   }
 
   // 3. Deduplicate
@@ -500,4 +509,7 @@ async function main() {
   console.log(`\nDone! Exported ${posts.length} media posts to ${outPath}`);
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});
