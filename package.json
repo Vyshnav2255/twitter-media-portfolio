@@ -8,10 +8,12 @@
     "sync": "node sync-media.js",
     "start": "node server.js"
   },
-  "keywords": ["twitter", "portfolio", "media", "grid"],
+  "keywords": [
+    "twitter",
+    "portfolio",
+    "media",
+    "grid"
+  ],
   "author": "",
-  "license": "MIT",
-  "dependencies": {
-    "motion": "^12.38.0"
-  }
+  "license": "MIT"
 }

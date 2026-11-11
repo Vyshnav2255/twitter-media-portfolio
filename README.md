@@ -129,7 +129,7 @@ There is no button that deletes a post from X. When you hide a video, the portfo
 ## Tech
 
 - Vanilla JS — no framework
-- [Motion One](https://motion.dev) for spring animations
+- Transform-only WAAPI/CSS motion, no animation library
 - DOM pooling (~500 elements) for smooth virtualized rendering
 - Twitter GraphQL API with browser cookie auth
 

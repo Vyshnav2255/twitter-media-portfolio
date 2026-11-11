@@ -29,6 +29,7 @@ const state = {
   hasDragged: false,
   touchStart: null,
   lightboxOpen: false,
+  lightboxCloseQueued: false,
   lightboxItem: null,
   lightboxAnimating: false,
   lightboxNavigationQueue: 0,
@@ -767,7 +768,7 @@ const createLightboxMedia = (image) => {
     video.loop = true;
     video.setAttribute("loop", "");
     video.preload = "metadata";
-    video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:0;opacity:1;pointer-events:auto;z-index:999;";
+    video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;opacity:1;pointer-events:auto;z-index:999;";
     video.addEventListener("loadedmetadata", () => { video.currentTime = 0; });
     video.addEventListener("canplay", () => {
       const promise = video.play();
@@ -780,7 +781,7 @@ const createLightboxMedia = (image) => {
   const hiRes = new Image();
   hiRes.src = twitterImageUrl(image.url, "4096x4096");
   hiRes.alt = "";
-  hiRes.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:0;opacity:0;transition:opacity 0.3s ease;";
+  hiRes.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;opacity:0;transition:opacity 0.2s var(--ease-out-soft);";
   hiRes.onload = () => { hiRes.style.opacity = "1"; };
   return hiRes;
 };
@@ -801,6 +802,26 @@ const getLightboxBounds = (image) => {
 
   return { x: viewportX + (vw - width) / 2, y: viewportY + (vh - height) / 2, width, height };
 };
+
+// Lightbox motion. Only transform and opacity animate (via WAAPI, off the main
+// thread): the clone is laid out once at its final size and scaled down to the
+// tile, so nothing reflows mid-flight. Curves come from the CSS tokens.
+const LIGHTBOX_OPEN_MS = 340;
+const LIGHTBOX_CLOSE_MS = 280;
+const LIGHTBOX_FADE_MS = 160;
+const LIGHTBOX_NAV_MS = 180;
+const LIGHTBOX_NAV_REPEAT_MS = 120;
+const TILE_RADIUS = 12;
+
+const cssToken = (name) =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// Transform that makes a box laid out at `box` cover `rect` instead.
+const flipTransform = (rect, box) =>
+  `translate3d(${rect.left}px, ${rect.top}px, 0) scale(${rect.width / box.width}, ${rect.height / box.height})`;
+
+const animateLightboxClone = (clone, keyframes, duration, easing) =>
+  clone.animate(keyframes, { duration, easing, fill: "forwards" }).finished.catch(() => {});
 
 const openLightbox = (el, mediaItem) => {
   if (state.lightboxOpen || state.lightboxAnimating) return;
@@ -842,12 +863,12 @@ const openLightbox = (el, mediaItem) => {
 
   lightboxClone = document.createElement("div");
   lightboxClone.className = "grid-item lightbox-active";
-  lightboxClone.style.width = `${startW}px`;
-  lightboxClone.style.height = `${startH}px`;
+  lightboxClone.style.width = `${targetW}px`;
+  lightboxClone.style.height = `${targetH}px`;
   lightboxClone.style.display = "";
   lightboxClone.style.visibility = "visible";
-  lightboxClone.style.transformOrigin = "center center";
-  lightboxClone.style.transform = `translate3d(${startX}px, ${startY}px, 0)`;
+  lightboxClone.style.transformOrigin = "0 0";
+  lightboxClone.style.transform = `translate3d(${endX}px, ${endY}px, 0)`;
 
   if (image) lightboxClone.appendChild(createLightboxMedia(image));
   document.body.appendChild(lightboxClone);
@@ -856,24 +877,9 @@ const openLightbox = (el, mediaItem) => {
   overlay.classList.add("active");
   document.body.classList.add("lightbox-open");
 
-  // Set lightbox info
-  if (post) {
-    // Strip t.co links from caption
-    const isVideo = image && image.type === "video";
-    let caption = post.text.trim().replace(/https?:\/\/t\.co\/\w+/g, "").trim();
-    if (caption) {
-      lightboxTitle.textContent = caption.length > 120 ? caption.substring(0, 120) + "\u2026" : caption;
-      lightboxTitle.style.display = "";
-    } else {
-      lightboxTitle.textContent = "";
-      lightboxTitle.style.display = "none";
-    }
-    lightboxLink.href = post.url;
-    lightboxLink.textContent = isVideo ? "Watch video on Twitter" : "View on Twitter";
-  }
+  if (post) setLightboxInfo(mediaItem);
+  document.getElementById("lightbox-info").classList.remove("is-swapping");
 
-  const lightboxInfo = document.getElementById("lightbox-info");
-  lightboxInfo.style.top = `${endY + targetH + 16}px`;
   lightboxNavHint.style.top = `${Math.max(16, endY - 32)}px`;
 
   const videoElement = lightboxClone.querySelector("video");
@@ -888,30 +894,43 @@ const openLightbox = (el, mediaItem) => {
   state.lightboxItem._endW = targetW;
   state.lightboxItem._endH = targetH;
 
-  const dx = endX - startX;
-  const dy = endY - startY;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  const springDuration = 0.45 + Math.min(distance / 2000, 0.25);
-
-  Motion.animate(
-    lightboxClone,
-    {
-      width: [`${startW}px`, `${targetW}px`],
-      height: [`${startH}px`, `${targetH}px`],
-      transform: [
-        `translate3d(${startX}px, ${startY}px, 0)`,
-        `translate3d(${endX}px, ${endY}px, 0)`,
-      ],
-    },
-    { type: "spring", duration: springDuration, bounce: 0.15 }
-  ).then(() => {
+  const finishOpen = () => {
     state.lightboxAnimating = false;
     flushLightboxNavigationQueue();
-  });
+  };
+
+  if (prefersReducedMotion()) {
+    animateLightboxClone(lightboxClone, { opacity: [0, 1] }, LIGHTBOX_FADE_MS, "linear").then(finishOpen);
+    return;
+  }
+
+  // Corners are counter-scaled so the tile's radius stays visually constant
+  // until it eases out to square at full size.
+  const startScale = Math.min(startW / targetW, startH / targetH);
+  animateLightboxClone(
+    lightboxClone,
+    {
+      transform: [
+        flipTransform({ left: startX, top: startY, width: startW, height: startH }, { width: targetW, height: targetH }),
+        `translate3d(${endX}px, ${endY}px, 0) scale(1, 1)`,
+      ],
+      borderRadius: [`${TILE_RADIUS / startScale}px`, "0px"],
+    },
+    LIGHTBOX_OPEN_MS,
+    cssToken("--ease-standard")
+  ).then(finishOpen);
 };
 
 const closeLightbox = (onClosed) => {
-  if (!state.lightboxOpen || state.lightboxAnimating || !state.lightboxItem) return;
+  if (!state.lightboxOpen || !state.lightboxItem) return;
+  // A close during an open or a navigation burst is never dropped: queued
+  // navigation is discarded and the close runs as soon as the current step lands.
+  if (state.lightboxAnimating) {
+    state.lightboxNavigationQueue = 0;
+    state.lightboxCloseQueued = true;
+    return;
+  }
+  state.lightboxCloseQueued = false;
 
   state.lightboxAnimating = true;
   const { element: el } = state.lightboxItem;
@@ -920,35 +939,61 @@ const closeLightbox = (onClosed) => {
   document.body.classList.remove("lightbox-open");
 
   const originalRect = el.getBoundingClientRect();
-  const endX = originalRect.left;
-  const endY = originalRect.top;
-  const endW = originalRect.width;
-  const endH = originalRect.height;
-
   const fromX = state.lightboxItem._endX;
   const fromY = state.lightboxItem._endY;
   const fromW = state.lightboxItem._endW;
   const fromH = state.lightboxItem._endH;
+  const clone = lightboxClone;
 
-  Motion.animate(
-    lightboxClone,
-    {
-      width: [`${fromW}px`, `${endW}px`],
-      height: [`${fromH}px`, `${endH}px`],
-      transform: [
-        `translate3d(${fromX}px, ${fromY}px, 0)`,
-        `translate3d(${endX}px, ${endY}px, 0)`,
-      ],
-    },
-    { type: "spring", duration: 0.4, bounce: 0 }
-  ).then(() => {
-    lightboxClone.remove();
-    lightboxClone = null;
+  const finishClose = () => {
+    clone.remove();
+    if (lightboxClone === clone) lightboxClone = null;
     state.lightboxOpen = false;
     state.lightboxItem = null;
     state.lightboxAnimating = false;
     onClosed?.();
-  });
+  };
+
+  if (prefersReducedMotion()) {
+    animateLightboxClone(clone, { opacity: [1, 0] }, LIGHTBOX_FADE_MS, "linear").then(finishClose);
+    return;
+  }
+
+  const endScale = Math.min(originalRect.width / fromW, originalRect.height / fromH);
+  animateLightboxClone(
+    clone,
+    {
+      transform: [
+        `translate3d(${fromX}px, ${fromY}px, 0) scale(1, 1)`,
+        flipTransform(originalRect, { width: fromW, height: fromH }),
+      ],
+      borderRadius: ["0px", `${TILE_RADIUS / endScale}px`],
+    },
+    LIGHTBOX_CLOSE_MS,
+    cssToken("--ease-standard")
+  ).then(finishClose);
+};
+
+const setLightboxInfo = (mediaItem) => {
+  const { post, image } = mediaItem;
+  const caption = post.text.trim().replace(/https?:\/\/t\.co\/\w+/g, "").trim();
+  lightboxTitle.textContent = caption.length > 120 ? `${caption.substring(0, 120)}\u2026` : caption;
+  lightboxTitle.style.display = caption ? "" : "none";
+  lightboxLink.href = post.url;
+  lightboxLink.textContent = image.type === "video" ? "Watch video on Twitter" : "View on Twitter";
+};
+
+// Fades the caption out, swaps the text while it is invisible, and fades back,
+// so the copy never jumps under the reader. Rapid swaps just retarget.
+let lightboxInfoSwapTimer = null;
+const swapLightboxInfo = (mediaItem) => {
+  const info = document.getElementById("lightbox-info");
+  clearTimeout(lightboxInfoSwapTimer);
+  info.classList.add("is-swapping");
+  lightboxInfoSwapTimer = setTimeout(() => {
+    setLightboxInfo(mediaItem);
+    info.classList.remove("is-swapping");
+  }, 90);
 };
 
 const getLightboxElement = (mediaItem) => {
@@ -957,6 +1002,10 @@ const getLightboxElement = (mediaItem) => {
 };
 
 const flushLightboxNavigationQueue = () => {
+  if (state.lightboxCloseQueued && state.lightboxOpen && !state.lightboxAnimating) {
+    closeLightbox();
+    return;
+  }
   if (!state.lightboxOpen || state.lightboxAnimating || !state.lightboxNavigationQueue) return;
 
   const direction = Math.sign(state.lightboxNavigationQueue);
@@ -965,7 +1014,7 @@ const flushLightboxNavigationQueue = () => {
 };
 
 const navigateLightbox = (direction) => {
-  if (!state.lightboxOpen || !state.lightboxItem) return;
+  if (!state.lightboxOpen || !state.lightboxItem || state.lightboxCloseQueued) return;
   if (state.lightboxAnimating) {
     state.lightboxNavigationQueue += direction;
     return;
@@ -987,42 +1036,59 @@ const navigateLightbox = (direction) => {
 
   state.lightboxAnimating = true;
 
+  // Keyboard and swipe navigation happen in bursts, so this stays short, and
+  // gets shorter still while a burst is queued up behind it.
+  const reduceMotion = prefersReducedMotion();
+  const duration = state.lightboxNavigationQueue ? LIGHTBOX_NAV_REPEAT_MS : LIGHTBOX_NAV_MS;
+  const easing = cssToken("--ease-out-soft");
+  const offset = reduceMotion ? 0 : 24;
+  const slide = (from, to) => [
+    { opacity: from.opacity, transform: `translate3d(${from.x}%, 0, 0)` },
+    { opacity: to.opacity, transform: `translate3d(${to.x}%, 0, 0)` },
+  ];
+
   const nextBounds = getLightboxBounds(nextMediaItem.image);
+  const previousBounds = {
+    width: state.lightboxItem._endW,
+    height: state.lightboxItem._endH,
+  };
   const previousMedia = lightboxClone.firstElementChild;
   const nextMedia = createLightboxMedia(nextMediaItem.image);
-  nextMedia.style.opacity = "0";
-  nextMedia.style.transform = `translate3d(${direction * 100}%, 0, 0)`;
-  nextMedia.style.transition = "opacity 0.4s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)";
+  nextMedia.style.transition = "none";
+  nextMedia.style.opacity = "1";
   lightboxClone.appendChild(nextMedia);
 
   if (previousMedia) {
-    previousMedia.style.opacity = "0";
-    previousMedia.style.transform = `translate3d(${-direction * 100}%, 0, 0)`;
-    previousMedia.style.transition = "opacity 0.4s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)";
-    setTimeout(() => {
-      if (previousMedia instanceof HTMLVideoElement) previousMedia.pause();
-      previousMedia.remove();
-    }, 400);
+    // Pin the outgoing media at its old size, centred in the new frame, so it
+    // leaves as it was instead of re-cropping when the frame resizes.
+    previousMedia.style.inset = "auto";
+    previousMedia.style.left = `${(nextBounds.width - previousBounds.width) / 2}px`;
+    previousMedia.style.top = `${(nextBounds.height - previousBounds.height) / 2}px`;
+    previousMedia.style.width = `${previousBounds.width}px`;
+    previousMedia.style.height = `${previousBounds.height}px`;
+    previousMedia.style.transition = "none";
+    previousMedia.getAnimations().forEach((animation) => animation.cancel());
+    previousMedia
+      .animate(slide({ opacity: 1, x: 0 }, { opacity: 0, x: -direction * offset }), { duration, easing, fill: "forwards" })
+      .finished.catch(() => {})
+      .then(() => {
+        if (previousMedia instanceof HTMLVideoElement) previousMedia.pause();
+        previousMedia.remove();
+      });
   }
 
-  // Each item is centered at its final dimensions immediately; only the media
-  // itself moves, so this reads as a directional carousel rather than a morph.
+  // The frame takes the next item's size immediately; only the media moves, so
+  // this reads as a directional carousel rather than a morph.
+  lightboxClone.getAnimations().forEach((animation) => animation.cancel());
   lightboxClone.style.width = `${nextBounds.width}px`;
   lightboxClone.style.height = `${nextBounds.height}px`;
   lightboxClone.style.transform = `translate3d(${nextBounds.x}px, ${nextBounds.y}px, 0)`;
-  void nextMedia.offsetWidth;
-  requestAnimationFrame(() => {
-    nextMedia.style.opacity = "1";
-    nextMedia.style.transform = "translate3d(0, 0, 0)";
-  });
+  const nextAnimation = nextMedia.animate(
+    slide({ opacity: 0, x: direction * offset }, { opacity: 1, x: 0 }),
+    { duration, easing }
+  );
 
-  const post = nextMediaItem.post;
-  const caption = post.text.trim().replace(/https?:\/\/t\.co\/\w+/g, "").trim();
-  lightboxTitle.textContent = caption.length > 120 ? `${caption.substring(0, 120)}…` : caption;
-  lightboxTitle.style.display = caption ? "" : "none";
-  lightboxLink.href = post.url;
-  lightboxLink.textContent = nextMediaItem.image.type === "video" ? "Watch video on Twitter" : "View on Twitter";
-  document.getElementById("lightbox-info").style.top = `${nextBounds.y + nextBounds.height + 16}px`;
+  swapLightboxInfo(nextMediaItem);
   lightboxNavHint.style.top = `${Math.max(16, nextBounds.y - 32)}px`;
 
   state.lightboxItem = {
@@ -1037,21 +1103,10 @@ const navigateLightbox = (direction) => {
   };
   preloadLightboxNeighbors(nextMediaItem);
 
-  let transitionComplete = false;
-  let transitionTimeout;
-  const onMediaTransitionEnd = (event) => {
-    if (event.propertyName === "transform") finishNavigation();
-  };
-  const finishNavigation = () => {
-    if (transitionComplete) return;
-    transitionComplete = true;
-    nextMedia.removeEventListener("transitionend", onMediaTransitionEnd);
-    clearTimeout(transitionTimeout);
+  nextAnimation.finished.catch(() => {}).then(() => {
     state.lightboxAnimating = false;
     flushLightboxNavigationQueue();
-  };
-  nextMedia.addEventListener("transitionend", onMediaTransitionEnd);
-  transitionTimeout = setTimeout(finishNavigation, 500);
+  });
 };
 
 const onLightboxTouchStart = (event) => {
@@ -1733,12 +1788,6 @@ const init = async () => {
   createPool();
   renderVisibleItems();
   createTopNav();
-
-  // Pre-warm Motion
-  const warmup = document.createElement("div");
-  warmup.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;";
-  document.body.appendChild(warmup);
-  Motion.animate(warmup, { opacity: [0, 1] }, { duration: 0.01 }).then(() => warmup.remove());
 
   viewport.addEventListener("mousedown", onMouseDown);
   viewport.addEventListener("mousemove", onMouseMove);

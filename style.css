@@ -491,7 +491,8 @@ body.lightbox-open .top-nav {
   display: inline-block;
   max-width: 0;
   overflow: hidden;
-  padding: 0;
+  box-sizing: border-box;
+  padding: 0 8px 0 4px;
   color: var(--control-text-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -499,12 +500,13 @@ body.lightbox-open .top-nav {
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
-  transition: max-width var(--transition-base), padding var(--transition-base), opacity var(--transition-base);
+  /* Width has to animate here because the counter pushes the toolbar open;
+     it is one tiny inline box, toggled rarely. Padding stays put. */
+  transition: max-width var(--transition-base), opacity var(--transition-base);
 }
 
 .edit-counter.visible {
   max-width: 60px;
-  padding: 0 8px 0 4px;
   opacity: 1;
 }
 
@@ -872,9 +874,9 @@ body.lightbox-open .top-nav {
   color: var(--scrim-text);
   cursor: pointer;
   opacity: 0;
-  transform: scale(0.8);
-  transition: opacity 0.3s ease, transform 0.3s ease, background var(--transition-fast),
-    border-color var(--transition-fast);
+  transform: scale(0.96);
+  transition: opacity 0.2s var(--ease-out-soft), transform 0.2s var(--ease-out-soft),
+    background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .lightbox-nav-btn {
@@ -898,8 +900,8 @@ body.lightbox-open .top-nav {
   color: var(--scrim-text);
   cursor: pointer;
   opacity: 0;
-  transform: translateY(-50%) scale(0.8);
-  transition: opacity 0.3s var(--ease-standard), transform 0.3s var(--ease-standard),
+  transform: translateY(-50%) scale(0.96);
+  transition: opacity 0.2s var(--ease-out-soft), transform 0.2s var(--ease-out-soft),
     background var(--transition-fast), color var(--transition-fast);
 }
 
@@ -941,7 +943,7 @@ body.lightbox-open .top-nav {
 .lightbox-overlay.active :is(.lightbox-close, .lightbox-nav-hint) {
   opacity: 1;
   transform: translate(-50%, 0);
-  transition-delay: 0.2s;
+  transition-delay: 0.12s;
 }
 
 /* Separate from the rule above: the hint is centred with translateX, the nav
@@ -949,7 +951,7 @@ body.lightbox-open .top-nav {
 .lightbox-overlay.active .lightbox-nav-btn {
   opacity: 1;
   transform: translateY(-50%) scale(1);
-  transition-delay: 0.2s;
+  transition-delay: 0.12s;
 }
 
 .lightbox-overlay.active .lightbox-close {
@@ -962,11 +964,18 @@ body.lightbox-open .top-nav {
 
 .lightbox-info {
   position: absolute;
+  bottom: calc(24px + env(safe-area-inset-bottom));
   left: 50%;
+  width: calc(100% - 48px);
   max-width: 640px;
+  transition: opacity 0.12s var(--ease-out-soft);
   color: var(--scrim-text);
   text-align: center;
   transform: translateX(-50%);
+}
+
+.lightbox-info.is-swapping {
+  opacity: 0;
 }
 
 .lightbox-title {
@@ -1008,8 +1017,9 @@ body.lightbox-open .top-nav {
   top: 0;
   left: 0;
   z-index: 101;
+  overflow: visible;
   border-radius: 0;
-  will-change: transform, width, height;
+  will-change: transform;
 }
 
 .grid-item.lightbox-active video {
@@ -1150,6 +1160,11 @@ body.lightbox-open .top-nav {
   .grid-item img:not(.play-pill-icon),
   .grid-item-video-preview {
     transition-duration: 0.01ms;
+    transition-delay: 0s;
+  }
+
+  :is(.lightbox-overlay, .lightbox-close, .lightbox-nav-btn, .lightbox-nav-hint, .lightbox-info) {
+    transition-duration: 0.12s;
     transition-delay: 0s;
   }
 

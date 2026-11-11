@@ -25,19 +25,13 @@ for (const file of ["app.js", "style.css", "portfolio.config.json", "portfolio-d
 }
 
 copyDir(path.join(ROOT, "assets"), path.join(DIST, "assets"));
-copyFile(
-  path.join(ROOT, "node_modules", "motion", "dist", "motion.js"),
-  path.join(DIST, "vendor", "motion.js")
-);
 
 const videoDir = path.join(ROOT, "assets", "videos");
 if (fs.existsSync(videoDir)) {
   copyDir(videoDir, path.join(DIST, "assets", "videos"));
 }
 
-const html = fs
-  .readFileSync(path.join(ROOT, "index.html"), "utf8")
-  .replace("node_modules/motion/dist/motion.js", "vendor/motion.js");
+const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 fs.writeFileSync(path.join(DIST, "index.html"), html);
 
 console.log("Built static site in dist/");
