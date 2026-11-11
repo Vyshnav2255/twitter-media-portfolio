@@ -438,6 +438,13 @@ body.lightbox-open .top-nav {
   transform: scale(0.94);
 }
 
+/* Press feedback for the rest of the controls, matching the toolbar chips.
+   These use the independent scale property so the press composes with the
+   transforms their open and hover states already own. */
+:is(.lightbox-close, .lightbox-nav-btn, .lightbox-view-btn, .info-link, .info-twitter-link):active {
+  scale: 0.97;
+}
+
 .toolbar-btn img {
   opacity: 0.5;
   transition: opacity var(--transition-fast);
@@ -653,7 +660,7 @@ body.lightbox-open .top-nav {
   background: var(--popover-hover);
   color: var(--popover-text);
   transition: background var(--transition-fast), border-color var(--transition-fast),
-    transform var(--transition-fast);
+    transform var(--transition-fast), scale 160ms var(--ease-out-soft);
 }
 
 .info-divider {
@@ -725,7 +732,7 @@ body.lightbox-open .top-nav {
   background: transparent;
   color: var(--popover-text);
   text-decoration: none;
-  transition: background var(--transition-fast), transform var(--transition-fast);
+  transition: background var(--transition-fast), transform var(--transition-fast), scale 160ms var(--ease-out-soft);
 }
 
 .info-link-icon {
@@ -876,7 +883,7 @@ body.lightbox-open .top-nav {
   opacity: 0;
   transform: scale(0.96);
   transition: opacity 0.2s var(--ease-out-soft), transform 0.2s var(--ease-out-soft),
-    background var(--transition-fast), border-color var(--transition-fast);
+    background var(--transition-fast), border-color var(--transition-fast), scale 160ms var(--ease-out-soft);
 }
 
 .lightbox-nav-btn {
@@ -902,7 +909,7 @@ body.lightbox-open .top-nav {
   opacity: 0;
   transform: translateY(-50%) scale(0.96);
   transition: opacity 0.2s var(--ease-out-soft), transform 0.2s var(--ease-out-soft),
-    background var(--transition-fast), color var(--transition-fast);
+    background var(--transition-fast), color var(--transition-fast), scale 160ms var(--ease-out-soft);
 }
 
 .lightbox-nav-btn svg {
@@ -943,7 +950,8 @@ body.lightbox-open .top-nav {
 .lightbox-overlay.active :is(.lightbox-close, .lightbox-nav-hint) {
   opacity: 1;
   transform: translate(-50%, 0);
-  transition-delay: 0.12s;
+  /* Only the entrance waits; hover and press stay immediate. */
+  transition-delay: 0.12s, 0.12s, 0s, 0s, 0s;
 }
 
 /* Separate from the rule above: the hint is centred with translateX, the nav
@@ -951,7 +959,8 @@ body.lightbox-open .top-nav {
 .lightbox-overlay.active .lightbox-nav-btn {
   opacity: 1;
   transform: translateY(-50%) scale(1);
-  transition-delay: 0.12s;
+  /* Only the entrance waits; hover and press stay immediate. */
+  transition-delay: 0.12s, 0.12s, 0s, 0s, 0s;
 }
 
 .lightbox-overlay.active .lightbox-close {
@@ -1009,7 +1018,14 @@ body.lightbox-open .top-nav {
   font-weight: 500;
   text-decoration: none;
   transition: background var(--transition-fast), border-color var(--transition-fast),
-    transform var(--transition-fast);
+    transform var(--transition-fast), scale 160ms var(--ease-out-soft);
+}
+
+/* Gestures on the open viewer are handled in JS; stop the page underneath
+   from scrolling or zooming while a finger drags the image. */
+.lightbox-overlay.active,
+.grid-item.lightbox-active {
+  touch-action: none;
 }
 
 .grid-item.lightbox-active {

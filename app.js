@@ -33,7 +33,7 @@ const state = {
   lightboxItem: null,
   lightboxAnimating: false,
   lightboxNavigationQueue: 0,
-  lightboxSwipeStart: null,
+  lightboxSwipe: null,
 };
 
 const viewport = document.getElementById("viewport");
@@ -778,12 +778,30 @@ const createLightboxMedia = (image) => {
     return video;
   }
 
+  // The grid's thumbnail is almost always already decoded, so it fills the
+  // frame from the first frame of the morph; the hi-res fades in over it.
+  const frame = document.createElement("div");
+  frame.className = "lightbox-media";
+  const fill = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;";
+
+  const thumb = new Image();
+  thumb.src = twitterImageUrl(image.url, "medium");
+  thumb.alt = "";
+  // Decode with the frame, so a cached thumbnail is never a blank first paint.
+  thumb.decoding = "sync";
+  // The clone is a .grid-item, whose images start hidden until they load.
+  thumb.style.cssText = `${fill}opacity:1;transition:none;`;
+
   const hiRes = new Image();
   hiRes.src = twitterImageUrl(image.url, "4096x4096");
   hiRes.alt = "";
-  hiRes.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;opacity:0;transition:opacity 0.2s var(--ease-out-soft);";
-  hiRes.onload = () => { hiRes.style.opacity = "1"; };
-  return hiRes;
+  hiRes.style.cssText = `${fill}opacity:0;transition:opacity 0.2s var(--ease-out-soft);`;
+  const reveal = () => { hiRes.style.opacity = "1"; };
+  hiRes.onload = reveal;
+  if (hiRes.complete && hiRes.naturalWidth > 0) reveal();
+
+  frame.append(thumb, hiRes);
+  return frame;
 };
 
 const getLightboxBounds = (image) => {
@@ -1052,10 +1070,8 @@ const navigateLightbox = (direction) => {
     width: state.lightboxItem._endW,
     height: state.lightboxItem._endH,
   };
-  const previousMedia = lightboxClone.firstElementChild;
+  const previousMedia = lightboxClone.lastElementChild;
   const nextMedia = createLightboxMedia(nextMediaItem.image);
-  nextMedia.style.transition = "none";
-  nextMedia.style.opacity = "1";
   lightboxClone.appendChild(nextMedia);
 
   if (previousMedia) {
@@ -1109,25 +1125,129 @@ const navigateLightbox = (direction) => {
   });
 };
 
+// Touch gestures on the open lightbox. The frame follows the finger 1:1, then
+// either commits (distance or flick velocity) or springs back. Horizontal pages,
+// downward pulls dismiss. The drag rides on the independent `translate`
+// property so it composes with the frame's own transform.
+const SWIPE_COMMIT_RATIO = 0.3;
+const PULL_COMMIT_PX = 120;
+const FLICK_VELOCITY = 0.11; // px per ms
+const AXIS_LOCK_PX = 8;
+const SPRING_BACK_MS = 250;
+
+const getSwipeVelocity = (gesture, axis, releasedAt) => {
+  const samples = gesture.samples;
+  if (samples.length < 2) return 0;
+  const last = samples[samples.length - 1];
+  // Holding still before letting go is a deliberate drop, not a flick.
+  if (releasedAt - last.t > 80) return 0;
+  // Velocity over the last ~80ms, so a flick that ends with a pause doesn't count.
+  const first = samples.find((sample) => last.t - sample.t <= 80) || samples[0];
+  const elapsed = last.t - first.t;
+  return elapsed > 0 ? (last[axis] - first[axis]) / elapsed : 0;
+};
+
+const settleLightboxDrag = (clone, ms) => {
+  const easing = cssToken("--ease-out-soft");
+  clone.style.transition = `translate ${ms}ms ${easing}`;
+  clone.style.translate = "";
+  overlay.style.transition = "";
+  overlay.style.opacity = "";
+  setTimeout(() => {
+    if (clone.style.translate === "") clone.style.transition = "";
+  }, ms);
+};
+
 const onLightboxTouchStart = (event) => {
-  if (!state.lightboxOpen || event.touches.length !== 1) return;
+  if (!state.lightboxOpen || state.lightboxAnimating || event.touches.length !== 1) {
+    state.lightboxSwipe = null;
+    return;
+  }
+  const touch = event.touches[0];
+  if (event.target.closest("button, a")) return;
+  // Leave a video's native control bar to the video.
+  const video = event.target.closest("video");
+  if (video && touch.clientY > video.getBoundingClientRect().bottom - 56) return;
+
+  state.lightboxSwipe = {
+    x0: touch.clientX,
+    y0: touch.clientY,
+    axis: null,
+    dx: 0,
+    dy: 0,
+    samples: [{ x: touch.clientX, y: touch.clientY, t: event.timeStamp }],
+  };
+};
+
+const onLightboxTouchMove = (event) => {
+  const gesture = state.lightboxSwipe;
+  if (!gesture || !lightboxClone || event.touches.length !== 1) return;
 
   const touch = event.touches[0];
-  state.lightboxSwipeStart = { x: touch.clientX, y: touch.clientY };
+  gesture.dx = touch.clientX - gesture.x0;
+  gesture.dy = touch.clientY - gesture.y0;
+  gesture.samples.push({ x: touch.clientX, y: touch.clientY, t: event.timeStamp });
+  if (gesture.samples.length > 8) gesture.samples.shift();
+
+  if (!gesture.axis) {
+    if (Math.hypot(gesture.dx, gesture.dy) < AXIS_LOCK_PX) return;
+    gesture.axis = Math.abs(gesture.dx) > Math.abs(gesture.dy) ? "x" : "y";
+  }
+
+  lightboxClone.style.transition = "none";
+  if (gesture.axis === "x") {
+    if (VISIBLE_MEDIA_ITEMS.length < 2) return;
+    lightboxClone.style.translate = `${gesture.dx}px 0`;
+    return;
+  }
+
+  // Only downward pulls dismiss; pulling up meets rising resistance.
+  const dy = gesture.dy > 0 ? gesture.dy : gesture.dy / (1 - gesture.dy / 60);
+  lightboxClone.style.translate = `0 ${dy}px`;
+  overlay.style.transition = "none";
+  overlay.style.opacity = String(Math.max(0.2, 1 - Math.max(0, dy) / 400));
 };
 
 const onLightboxTouchEnd = (event) => {
-  if (!state.lightboxSwipeStart || !event.changedTouches.length) return;
+  const releasedAt = event.timeStamp;
+  const gesture = state.lightboxSwipe;
+  state.lightboxSwipe = null;
+  if (!gesture || !gesture.axis || !lightboxClone || !state.lightboxItem) return;
 
-  const touch = event.changedTouches[0];
-  const deltaX = touch.clientX - state.lightboxSwipeStart.x;
-  const deltaY = touch.clientY - state.lightboxSwipeStart.y;
-  state.lightboxSwipeStart = null;
+  const clone = lightboxClone;
+  if (gesture.axis === "x") {
+    const velocity = getSwipeVelocity(gesture, "x", releasedAt);
+    const width = state.lightboxItem._endW;
+    const commit =
+      VISIBLE_MEDIA_ITEMS.length > 1 &&
+      (Math.abs(gesture.dx) > width * SWIPE_COMMIT_RATIO || Math.abs(velocity) > FLICK_VELOCITY) &&
+      Math.sign(velocity || gesture.dx) === Math.sign(gesture.dx);
 
-  const isHorizontalSwipe = Math.abs(deltaX) > 48 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25;
-  if (!isHorizontalSwipe) return;
+    if (commit) {
+      // The frame glides home while the next item slides in from the same side.
+      settleLightboxDrag(clone, LIGHTBOX_NAV_MS);
+      navigateLightbox(gesture.dx < 0 ? 1 : -1);
+    } else {
+      settleLightboxDrag(clone, SPRING_BACK_MS);
+    }
+    return;
+  }
 
-  navigateLightbox(deltaX < 0 ? 1 : -1);
+  const velocity = getSwipeVelocity(gesture, "y", releasedAt);
+  if (gesture.dy > PULL_COMMIT_PX || (gesture.dy > 24 && velocity > FLICK_VELOCITY)) {
+    // Fold the pull into the frame's resting position so the close morph starts
+    // exactly where the finger let go.
+    clone.style.transition = "none";
+    clone.style.translate = "";
+    clone.getAnimations().forEach((animation) => animation.cancel());
+    state.lightboxItem._endY += gesture.dy;
+    clone.style.transform = `translate3d(${state.lightboxItem._endX}px, ${state.lightboxItem._endY}px, 0)`;
+    overlay.style.transition = "";
+    overlay.style.opacity = "";
+    closeLightbox();
+  } else {
+    settleLightboxDrag(clone, SPRING_BACK_MS);
+  }
 };
 
 // --- Input Handlers ---
@@ -1381,10 +1501,40 @@ const createMusicToggle = () => {
   icon.alt = "Music";
   btn.appendChild(icon);
 
+  // The icon swaps with a quick shrink-and-fade so the state change reads as a
+  // change rather than a flicker. Reduced motion keeps only the fade.
+  let targetSrc = null;
+  const swapIcon = (src) => {
+    if (targetSrc === src) return;
+    const first = targetSrc === null;
+    targetSrc = src;
+    if (first) {
+      icon.src = src;
+      return;
+    }
+    const easing = cssToken("--ease-out-soft");
+    const small = prefersReducedMotion() ? "scale(1)" : "scale(0.9)";
+    icon.getAnimations().forEach((animation) => animation.cancel());
+    const out = icon.animate(
+      [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: small }],
+      { duration: 70, easing: "ease-in-out", fill: "forwards" }
+    );
+    out.finished
+      .then(() => {
+        if (targetSrc !== src) return;
+        icon.src = src;
+        out.cancel();
+        icon.animate([{ opacity: 0, transform: small }, { opacity: 1, transform: "scale(1)" }], { duration: 110, easing });
+      })
+      .catch(() => {
+        // Interrupted by a newer swap, which sets its own src.
+      });
+  };
+
   const sync = () => {
     const isPlaying = Boolean(backgroundMusic && !backgroundMusic.paused);
     btn.classList.toggle("active", isPlaying);
-    icon.src = isPlaying ? "assets/music-on.svg" : "assets/music-off.svg";
+    swapIcon(isPlaying ? "assets/music-on.svg" : "assets/music-off.svg");
     btn.title = isPlaying ? "Pause lo-fi music" : "Play lo-fi music";
     btn.setAttribute("aria-label", btn.title);
     btn.setAttribute("aria-pressed", String(isPlaying));
@@ -1800,7 +1950,9 @@ const init = async () => {
   window.addEventListener("scroll", scheduleVisibleRender, { passive: true });
   window.addEventListener("resize", scheduleLayoutRebuild);
   window.addEventListener("touchstart", onLightboxTouchStart, { passive: true });
+  window.addEventListener("touchmove", onLightboxTouchMove, { passive: true });
   window.addEventListener("touchend", onLightboxTouchEnd, { passive: true });
+  window.addEventListener("touchcancel", onLightboxTouchEnd, { passive: true });
 
   lightboxClose.addEventListener("click", (e) => {
     e.stopPropagation();
