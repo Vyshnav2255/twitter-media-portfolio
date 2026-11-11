@@ -1,21 +1,13 @@
 #!/usr/bin/env node
 
 // Fetches your media tweets and profile info via Twitter's internal GraphQL API.
-// Uses Chromium browser cookies for auth (must be logged into x.com in the configured browser).
+// Uses your x.com login from any installed browser (see browser-cookies.js).
 // Outputs portfolio-data.json
 
 const { execFileSync } = require("child_process");
-const {
-  copyFileSync,
-  unlinkSync,
-  writeFileSync,
-  readFileSync,
-  existsSync,
-  readdirSync,
-} = require("fs");
+const { writeFileSync, readFileSync, existsSync } = require("fs");
 const { join } = require("path");
-const { tmpdir, homedir } = require("os");
-const { pbkdf2Sync, createDecipheriv, randomUUID } = require("crypto");
+const { getXCookies } = require("./browser-cookies");
 const {
   downloadVideoToLocal,
   cleanupUnusedVideoFiles,
@@ -37,7 +29,9 @@ function loadConfig() {
 const config = loadConfig();
 const SCREEN_NAME = config.handle;
 const MAX_POSTS = config.maxPosts || 100;
-const COOKIE_BROWSER = config.cookieBrowser || config.browser || "chrome";
+// "auto" (default) scans every installed browser. A name, or a list of names,
+// is tried first, then everything else, so a missing browser never stops a sync.
+const COOKIE_BROWSER = config.cookieBrowser || config.browser || "auto";
 const COOKIE_PROFILE = config.cookieProfile || config.browserProfile || "";
 const HIDDEN_MEDIA_IDS = new Set(config.hiddenMediaIds || []);
 const HIDDEN_POST_IDS = new Set(config.hiddenIds || []);
@@ -92,137 +86,15 @@ const GRAPHQL_FEATURES = {
 
 // --- Cookie extraction ---
 
-const BROWSERS = {
-  chrome: {
-    label: "Chrome",
-    userDataDir: join(homedir(), "Library/Application Support/Google/Chrome"),
-    keychainCandidates: [
-      ["Chrome Safe Storage", "Chrome"],
-      ["Chrome Safe Storage", "Google Chrome"],
-      ["Google Chrome Safe Storage", "Chrome"],
-      ["Google Chrome Safe Storage", "Google Chrome"],
-    ],
-  },
-  arc: {
-    label: "Arc",
-    userDataDir: join(homedir(), "Library/Application Support/Arc/User Data"),
-    keychainCandidates: [
-      ["Arc Safe Storage", "Arc"],
-      ["Arc Safe Storage", "Arc Browser"],
-      ["Arc Safe Storage", "The Browser Company"],
-    ],
-  },
-};
-
-function getBrowserConfig() {
-  const key = String(COOKIE_BROWSER).toLowerCase();
-  const browser = BROWSERS[key];
-  if (!browser) {
-    throw new Error(`Unsupported cookie browser "${COOKIE_BROWSER}". Use one of: ${Object.keys(BROWSERS).join(", ")}`);
-  }
-  return browser;
-}
-
-function getBrowserKey(browser) {
-  const candidates = [
-    ...browser.keychainCandidates,
-    ...(config.cookieKeychainService && config.cookieKeychainAccount
-      ? [[config.cookieKeychainService, config.cookieKeychainAccount]]
-      : []),
-  ];
-  for (const [service, account] of candidates) {
-    try {
-      const pw = execFileSync(
-        "security",
-        ["find-generic-password", "-w", "-s", service, "-a", account],
-        { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }
-      ).trim();
-      if (pw) return pbkdf2Sync(pw, "saltysalt", 1003, 16, "sha1");
-    } catch {}
-  }
-  throw new Error(`Could not read ${browser.label} Safe Storage password from Keychain`);
-}
-
-function getCookieDbPaths(browser) {
-  if (COOKIE_PROFILE) {
-    return [join(browser.userDataDir, COOKIE_PROFILE, "Cookies")];
-  }
-
-  const profileNames = ["Default"];
-  try {
-    for (const name of readdirSync(browser.userDataDir)) {
-      if (/^Profile \d+$/.test(name)) profileNames.push(name);
-    }
-  } catch {}
-
-  return [...new Set(profileNames)]
-    .map((profile) => join(browser.userDataDir, profile, "Cookies"))
-    .filter(existsSync);
-}
-
+// Read once per run: every GraphQL call reuses it, so the Keychain is asked
+// at most once per browser.
+let cachedCookies = null;
 function getTwitterCookies() {
-  const browser = getBrowserConfig();
-  const key = getBrowserKey(browser);
-  const dbPaths = getCookieDbPaths(browser);
-  if (dbPaths.length === 0) {
-    throw new Error(`No ${browser.label} cookie database found. Make sure ${browser.label} has been opened at least once.`);
+  if (!cachedCookies) {
+    cachedCookies = getXCookies({ preferred: COOKIE_BROWSER, profile: COOKIE_PROFILE });
+    console.log(`Using your x.com login from ${cachedCookies.browser}`);
   }
-
-  const dec = new Map();
-
-  for (const dbPath of dbPaths) {
-    const tmp = join(tmpdir(), `portfolio-sync-${randomUUID()}.db`);
-    try {
-      copyFileSync(dbPath, tmp);
-
-      let dbVersion = 0;
-      try {
-        dbVersion = parseInt(
-          execFileSync("sqlite3", [tmp, "SELECT value FROM meta WHERE key='version';"], {
-            encoding: "utf8", stdio: ["pipe", "pipe", "pipe"],
-          }).trim()
-        ) || 0;
-      } catch {}
-
-      const sql = `SELECT name, hex(encrypted_value) as h, value FROM cookies WHERE host_key IN ('x.com', '.x.com') AND name IN ('ct0','auth_token');`;
-      const raw = JSON.parse(
-        execFileSync("sqlite3", ["-json", tmp, sql], { encoding: "utf8" }).trim() || "[]"
-      );
-
-      for (const r of raw) {
-        if (r.h && r.h.length > 0) {
-          const buf = Buffer.from(r.h, "hex");
-          if (buf[0] === 0x76 && buf[1] === 0x31 && buf[2] === 0x30) {
-            const iv = Buffer.alloc(16, 0x20);
-            const decipher = createDecipheriv("aes-128-cbc", key, iv);
-            let p = decipher.update(buf.subarray(3));
-            p = Buffer.concat([p, decipher.final()]);
-            if (dbVersion >= 24 && p.length > 32) p = p.subarray(32);
-            dec.set(r.name, p.toString("utf8").replace(/\0+$/g, "").trim());
-          }
-        } else if (r.value) {
-          dec.set(r.name, r.value);
-        }
-      }
-    } catch {
-      // Ignore unreadable profiles and continue looking for the profile logged into x.com.
-    } finally {
-      try {
-        unlinkSync(tmp);
-      } catch {}
-    }
-
-    if (dec.has("ct0")) break;
-  }
-
-  const ct0 = dec.get("ct0");
-  const authToken = dec.get("auth_token");
-  if (!ct0) throw new Error(`No ct0 cookie found — make sure you're logged into x.com in ${browser.label}`);
-
-  return {
-    csrfToken: ct0,
-    cookieHeader: `ct0=${ct0}; auth_token=${authToken}`,
-  };
+  return cachedCookies;
 }
 
 // --- GraphQL fetch ---

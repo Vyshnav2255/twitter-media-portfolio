@@ -36,5 +36,5 @@ To find current IDs: open the browser DevTools Network tab on x.com, filter by `
 ## Requirements
 
 - Node.js 20+
-- Supported Chromium browser logged into x.com (for cookie-based auth)
+- Any supported browser logged into x.com (Chromium family, Firefox family or Safari; `browser-cookies.js` finds it automatically)
 - macOS (for Keychain cookie decryption)

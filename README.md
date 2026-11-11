@@ -4,7 +4,7 @@ Turn your Twitter/X media posts into a visual portfolio. Clone, connect your pro
 
 ## Quick Start
 
-Requires **Node.js 20+** and a supported Chromium browser logged into x.com (macOS).
+Requires **Node.js 20+** and any browser on your Mac that's logged into x.com: Chrome, Arc, Dia, Brave, Edge, Comet, Vivaldi, Opera, Helium, Chromium, Firefox, Zen, LibreWolf, Waterfox or Safari.
 
 ```bash
 git clone https://github.com/Vyshnav2255/twitter-media-portfolio.git
@@ -63,7 +63,7 @@ The deployed site is read-only. Use local edit mode to hide/show media, then com
 
 After setting `handle` and `maxPosts` in `portfolio.config.json`, run `npm run sync` or `node sync-media.js` to update your portfolio.
 
-1. The sync uses your saved X login from the browser you chose in the config. Make sure you are logged in to `x.com` first.
+1. The sync finds your saved X login in whichever browser is logged in to `x.com`. Browsers that aren't installed are skipped. If you set `browser`, that one is tried first.
 2. It gets your posts with images or videos, removes duplicates, puts the newest posts first, and keeps up to the number set in `maxPosts`.
 3. It saves the results, including your profile information, in `portfolio-data.json`.
 4. It keeps your hide settings in `portfolio.config.json`. If the sync fails or finds nothing, your current portfolio and downloaded videos are left alone.
@@ -103,7 +103,7 @@ There is no button that deletes a post from X. When you hide a video, the portfo
 {
   "handle": "yourusername",
   "maxPosts": 200,
-  "browser": "arc",
+  "browser": "auto",
   "hiddenIds": [],
   "hiddenMediaIds": []
 }
@@ -113,8 +113,8 @@ There is no button that deletes a post from X. When you hide a video, the portfo
 |-----|-------------|
 | `handle` | Your Twitter/X username (without @) |
 | `maxPosts` | How many posts to fetch (default 200) |
-| `browser` | Browser to read cookies from: `arc` or `chrome` |
-| `browserProfile` | Optional browser profile folder, for example `Default` or `Profile 1` |
+| `browser` | `auto` (default) checks every installed browser. Or name one to try first, such as `chrome`, `arc`, `brave`, `firefox` or `safari`, or a list like `["dia", "chrome"]` |
+| `browserProfile` | Optional profile folder for the browser named in `browser`, for example `Default` or `Profile 1` |
 | `hiddenIds` | Legacy tweet IDs hidden from portfolio |
 | `hiddenMediaIds` | Individual media item IDs hidden from portfolio (managed via edit mode) |
 
@@ -123,7 +123,7 @@ There is no button that deletes a post from X. When you hide a video, the portfo
 | Problem | Fix |
 |---------|-----|
 | "Query not found" | Twitter's GraphQL query IDs change. Open x.com DevTools → Network → filter `graphql` → update IDs in `sync-media.js` |
-| "No ct0 cookie found" | Log into x.com in the configured browser first. If you use multiple profiles, set `browserProfile` |
+| "Couldn't find an x.com login" | Log in to x.com in any supported browser. The error lists each browser it checked and why it was skipped. Safari needs your terminal to have Full Disk Access |
 | Port 3000 in use | `PORT=3001 node server.js` |
 
 ## Tech
